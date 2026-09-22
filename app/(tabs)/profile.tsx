@@ -12,16 +12,16 @@ export default function ProfileScreen() {
   const router = useRouter();
 
   const handleSignOut = async () => {
-    setLoading(true);
-    try {
-      await signOut();
-      router.replace('/login');
-    } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Failed to sign out.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  setLoading(true);
+  try {
+    router.replace('/login');
+    await signOut();
+  } catch (err: any) {
+    Alert.alert('Error', err?.message || 'Failed to sign out.');
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <View style={styles.container}>
