@@ -18,3 +18,10 @@ expo-env.d.ts
 
 # macOS
 .DS_Store
+
+# docs
+.docs/
+
+# env
+.env
+.env.example

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 import { supabase } from './supabase';
 import type { Session, User } from '@supabase/supabase-js';
 
@@ -12,6 +12,7 @@ let globalSession: Session | null = null;
 let globalUser: User | null = null;
 let globalLoading = false;
 let listeners: Set<() => void> = new Set();
+let snapshot: AuthState = { session: null, user: null, loading: false };
 
 function notify() {
   listeners.forEach((l) => l());
@@ -21,23 +22,24 @@ export function setAuth(session: Session | null) {
   globalSession = session;
   globalUser = session?.user ?? null;
   globalLoading = false;
+  // A fresh object reference is required so useSyncExternalStore detects the change.
+  snapshot = { session: globalSession, user: globalUser, loading: globalLoading };
   notify();
 }
 
-export function useAuth(): AuthState {
-  const [, forceRender] = useState(0);
-
-  useEffect(() => {
-    const listener = () => forceRender((n) => n + 1);
-    listeners.add(listener);
-    return () => { listeners.delete(listener); };
-  }, []);
-
-  return {
-    session: globalSession,
-    user: globalUser,
-    loading: globalLoading,
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
   };
+}
+
+function getSnapshot(): AuthState {
+  return snapshot;
+}
+
+export function useAuth(): AuthState {
+  return useSyncExternalStore(subscribe, getSnapshot);
 }
 
 export async function signUp(email: string, password: string) {
