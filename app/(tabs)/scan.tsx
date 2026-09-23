@@ -1,3 +1,4 @@
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -7,6 +8,7 @@ import { COLORS } from '@/constants/colors';
 
 import { useAuth } from '@/lib/auth';
 import { registerAttendance } from '@/lib/attendance';
+import { useRole } from '@/lib/role';
 
 export default function ScanScreen() {
   const [permission, requestPermission] = useCameraPermissions();
@@ -15,7 +17,27 @@ export default function ScanScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const { user } = useAuth();
+  const { role, loading: roleLoading } = useRole();
 
+  if (roleLoading) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.subtitle}>Checking your account...</Text>
+      </View>
+    );
+  }
+
+  if (role === 'teacher') {
+    return (
+      <View style={styles.centered}>
+        <Ionicons name="lock-closed-outline" size={48} color={COLORS.textSecondary} />
+        <Text style={styles.lockTitle}>Students Only</Text>
+        <Text style={styles.lockText}>
+          Teacher accounts create events instead of scanning. Use the Teacher tab to generate a QR code.
+        </Text>
+      </View>
+    );
+  }
 
   if (!permission) {
     return <View style={styles.container} />;
@@ -140,5 +162,24 @@ scanResult: { fontSize: 14, textAlign: 'center', marginBottom: 8, fontWeight: '6
 success:    { color: '#2E7D32' },   // green — attendance recorded
 error:      { color: '#C62828' },   // red — failed / duplicate
 scanData:   { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 12 },
-
+  centered: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  lockTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    marginTop: 12,
+    marginBottom: 6,
+  },
+  lockText: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
 });

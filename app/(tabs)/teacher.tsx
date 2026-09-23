@@ -2,8 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -17,10 +16,9 @@ import QRCode from 'react-native-qrcode-svg';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
-import { useAuth } from '@/lib/auth';
 import { createEvent } from '@/lib/events';
 import { buildQRPayload } from '@/lib/qr';
-import { getProfile, type Role } from '@/lib/profiles';
+import { useRole } from '@/lib/role';
 
 function toLocalISO(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -58,29 +56,7 @@ export default function TeacherScreen() {
   const [payload, setPayload] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const { user } = useAuth();
-  const [role, setRole] = useState<Role | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
-
-  useFocusEffect(
-    useCallback(() => {
-      let active = true;
-      if (!user) {
-        setRoleLoading(false);
-        return () => {
-          active = false;
-        };
-      }
-      getProfile(user.id).then((profile) => {
-        if (!active) return;
-        setRole(profile?.role ?? 'student');
-        setRoleLoading(false);
-      });
-      return () => {
-        active = false;
-      };
-    }, [user])
-  );
+  const { role, loading: roleLoading } = useRole();
 
   const isAndroid = Platform.OS === 'android';
 

@@ -145,7 +145,7 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   roleBadgeStudent: {
-    backgroundColor: '#2E7D5B',
+    backgroundColor: COLORS.textSecondary,
   },
   roleBadgeText: {
     color: '#FFFFFF',
