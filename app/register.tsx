@@ -231,16 +231,15 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: '700',
     color: COLORS.textPrimary,
-    textAlign: 'center',
     marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
+    fontSize: 15,
+    lineHeight: 21,
     color: COLORS.textSecondary,
-    textAlign: 'center',
     marginBottom: 32,
   },
   form: {
@@ -255,12 +254,12 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: COLORS.card,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 15,
+    fontSize: 16,
     color: COLORS.textPrimary,
   },
   roleRow: {
@@ -270,7 +269,7 @@ const styles = StyleSheet.create({
   roleChip: {
     flex: 1,
     backgroundColor: COLORS.card,
-    borderRadius: 14,
+    borderRadius: 10,
     borderWidth: 1,
     borderColor: COLORS.border,
     paddingVertical: 12,
@@ -291,8 +290,7 @@ const styles = StyleSheet.create({
   },
   error: {
     fontSize: 14,
-    color: '#C62828',
-    textAlign: 'center',
+    color: COLORS.danger,
     marginTop: 12,
     marginBottom: 4,
   },
@@ -310,7 +308,9 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     padding: 20,
     backgroundColor: COLORS.card,
-    borderRadius: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
   successTitle: {
     fontSize: 18,

@@ -12,44 +12,31 @@ type Props = {
 };
 
 export default function AppButton({ title, icon, theme, disabled, onPress }: Props) {
-  if (theme === 'primary') {
-    return (
-      <View
-        style={[
-          styles.buttonOuter,
-          { borderWidth: 3, borderColor: COLORS.primary, borderRadius: 18 },
-          disabled && styles.disabled,
-        ]}
-      >
-        <Pressable
-          style={[styles.buttonInner, { backgroundColor: COLORS.primary }]}
-          onPress={onPress}
-          disabled={disabled}
-        >
-          <Ionicons
-            name={icon}
-            size={22}
-            color={COLORS.textOnPrimary}
-            style={styles.icon}
-          />
-          <Text style={[styles.label, { color: COLORS.textOnPrimary }]}>
-            {title}
-          </Text>
-        </Pressable>
-      </View>
-    );
-  }
+  const isPrimary = theme === 'primary';
 
   return (
     <View style={[styles.buttonOuter, disabled && styles.disabled]}>
-      <Pressable style={styles.buttonInner} onPress={onPress} disabled={disabled}>
+      <Pressable
+        style={[styles.buttonInner, isPrimary ? styles.primaryFill : styles.secondaryFill]}
+        onPress={onPress}
+        disabled={disabled}
+      >
         <Ionicons
           name={icon}
           size={22}
-          color={COLORS.textSecondary}
+          color={isPrimary ? COLORS.textOnPrimary : COLORS.textSecondary}
           style={styles.icon}
         />
-        <Text style={styles.label}>{title}</Text>
+        <Text
+          style={[
+            styles.label,
+            isPrimary
+              ? { color: COLORS.textOnPrimary, fontWeight: '700' }
+              : { color: COLORS.textPrimary },
+          ]}
+        >
+          {title}
+        </Text>
       </Pressable>
     </View>
   );
@@ -61,22 +48,25 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   buttonInner: {
-    borderRadius: 14,
+    borderRadius: 10,
     paddingVertical: 16,
     paddingHorizontal: 20,
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
+    borderWidth: 1,
+  },
+  primaryFill: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  secondaryFill: {
     backgroundColor: COLORS.card,
-    shadowColor: COLORS.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    borderColor: COLORS.border,
   },
   disabled: {
     opacity: 0.5,
   },
   icon: { paddingRight: 10 },
-  label: { fontSize: 17, fontWeight: '600', color: COLORS.textPrimary },
+  label: { fontSize: 17, fontWeight: '600' },
 });
