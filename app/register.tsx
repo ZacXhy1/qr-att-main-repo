@@ -187,6 +187,7 @@ export default function RegisterScreen() {
 
                 {error && <Text style={styles.error}>{error}</Text>}
 
+                <View style={styles.actions}></View>
                 {loading ? (
                   <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
                 ) : (
@@ -293,6 +294,9 @@ const styles = StyleSheet.create({
     color: COLORS.danger,
     marginTop: 12,
     marginBottom: 4,
+  },
+    actions: {
+    marginTop: 12,
   },
   loader: {
     marginVertical: 16,
