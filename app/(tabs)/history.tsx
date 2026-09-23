@@ -5,7 +5,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { COLORS } from '@/constants/colors';
 import { getTeacherEventAttendance, type TeacherEventAttendance } from '@/lib/attendance';
 import { useAuth } from '@/lib/auth';
-import { getAttendanceHistory, type AttendanceRecord } from '@/lib/database';
+import { getAttendanceHistory, type AttendanceRecord } from '@/lib/attendance';
 import { getProfile, type Role } from '@/lib/profiles';
 
 export default function HistoryScreen() {
