@@ -7,13 +7,6 @@ export type AttendanceRecord = {
   scannedAt: string;
 };
 
-export type Event = {
-  eventId: string;
-  title: string;
-  start: string;
-  end: string;
-};
-
 type EventPayload = {
   v: number;
   event: string;
@@ -129,21 +122,4 @@ export async function getAttendanceHistory(
     eventTitle: row.events?.title ?? '',
     scannedAt: row.scanned_at,
   }));
-}
-
-export async function createEvent(event: Event): Promise<void> {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  await supabase.from('events').upsert(
-    {
-      event_code: event.eventId,
-      title: event.title,
-      start_time: event.start || null,
-      end_time: event.end || null,
-      created_by: user?.id ?? null,
-    },
-    { onConflict: 'event_code' }
-  );
 }
