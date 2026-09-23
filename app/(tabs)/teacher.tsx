@@ -19,6 +19,7 @@ import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
 import { createEvent } from '@/lib/events';
+import { buildQRPayload } from '@/lib/qr';
 import { getProfile, type Role } from '@/lib/profiles';
 
 function toLocalISO(date: Date) {
@@ -145,15 +146,7 @@ export default function TeacherScreen() {
         return;
       }
       setMessage('Event saved! Scan the QR with the Scan tab to test it.');
-      setPayload(
-        JSON.stringify({
-          v: 1,
-          event: event.eventId,
-          title: event.title,
-          start: event.start,
-          end: event.end,
-        })
-      );
+      setPayload(buildQRPayload(event));
     });
   };
 

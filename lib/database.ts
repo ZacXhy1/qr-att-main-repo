@@ -1,18 +1,11 @@
 import { supabase } from './supabase';
+import { parseQRPayload } from './qr';
 
 export type AttendanceRecord = {
   id: string;
   eventId: string;
   eventTitle: string;
   scannedAt: string;
-};
-
-type EventPayload = {
-  v: number;
-  event: string;
-  title?: string;
-  start?: string;
-  end?: string;
 };
 
 export type RegisterResult = {
@@ -25,18 +18,14 @@ export async function registerAttendance(
   rawPayload: string,
   studentId: string
 ): Promise<RegisterResult> {
-  let payload: EventPayload;
-  try {
-    payload = JSON.parse(rawPayload);
-  } catch {
-    return { success: false, message: 'Invalid QR code.' };
+  const parsed = parseQRPayload(rawPayload);
+  if (!parsed.ok) {
+    return { success: false, message: parsed.message };
   }
-
-  if (payload.v !== 1 || !payload.event) {
-    return { success: false, message: 'Not an attendance QR code.' };
-  }
+  const payload = parsed.payload;
 
   const now = Date.now();
+
   const start = payload.start ? new Date(payload.start).getTime() : null;
   const end = payload.end ? new Date(payload.end).getTime() : null;
 
