@@ -1,3 +1,8 @@
+   ## Download the APK
+
+   The APK attached to my submission is an earlier build that crashes on launch (missing Supabase env vars).
+   The fixed build is here: [Download / build page](https://expo.dev/accounts/zacxhy1/projects/QR-ATT/builds/cbf1557d-c494-4667-b962-3d470679507e)
+
 # SETUP COMMANDS — QR Attendance App
 
 > **Target:** First-year students | **Expo SDK:** 54 | **Expo Go:** 54.0.8
