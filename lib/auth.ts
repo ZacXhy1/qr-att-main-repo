@@ -51,13 +51,14 @@ export async function signUp(
   password: string,
   profile?: SignUpProfile
 ) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if (!error && data.session && profile) {
-    await supabase
-      .from('profiles')
-      .update({ full_name: profile.full_name, role: profile.role })
-      .eq('id', data.session.user.id);
-  }
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: profile ? { full_name: profile.full_name, role: profile.role } : undefined,
+    },
+  });
+
   if (!error && data.session) {
     setAuth(data.session);
   }
