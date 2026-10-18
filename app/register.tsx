@@ -20,6 +20,7 @@ import Header from '@/components/Header';
 import PasswordInput from '@/components/PasswordInput';
 import { COLORS } from '@/constants/colors';
 import { signUp } from '@/lib/auth';
+import { validateEmail, validatePassword } from '@/lib/validation';
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
@@ -41,13 +42,20 @@ export default function RegisterScreen() {
       return;
     }
 
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
@@ -168,7 +176,7 @@ export default function RegisterScreen() {
                 <PasswordInput
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="At least 6 characters"
+                  placeholder="8+ characters, letters and numbers"
                   editable={!loading}
                 />
 

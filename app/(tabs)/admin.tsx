@@ -18,6 +18,7 @@ import {
   type AdminStats,
   type AdminUser,
 } from '@/lib/admin';
+import { useRealtimeRefresh } from '@/lib/realtime';
 import { useRole } from '@/lib/role';
 import type { Role } from '@/lib/profiles';
 
@@ -54,6 +55,9 @@ export default function AdminScreen() {
       }
     }, [role, load])
   );
+
+  // Live updates: attendance, events and users.
+  useRealtimeRefresh('admin', ['attendance', 'events', 'profiles'], load, role === 'admin');
 
   const handleSetRole = async (userId: string, newRole: Role) => {
     setSavingUserId(userId);

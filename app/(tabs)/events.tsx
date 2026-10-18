@@ -6,6 +6,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
+import { useRealtimeRefresh } from '@/lib/realtime';
 import {
   getEventsForStudent,
   getEventState,
@@ -61,6 +62,9 @@ export default function EventsScreen() {
       load();
     }, [load])
   );
+
+  // Live updates: new/closed events and your own attendance.
+  useRealtimeRefresh('student-events', ['events', 'attendance'], load);
 
   const onRefresh = async () => {
     setRefreshing(true);

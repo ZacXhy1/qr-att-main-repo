@@ -19,6 +19,7 @@ import Header from '@/components/Header';
 import PasswordInput from '@/components/PasswordInput';
 import { COLORS } from '@/constants/colors';
 import { signIn } from '@/lib/auth';
+import { validateEmail } from '@/lib/validation';
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -30,6 +31,17 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     setError(null);
+
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
+      return;
+    }
+    if (!password) {
+      setError('Password is required.');
+      return;
+    }
+
     setLoading(true);
 
     try {

@@ -7,6 +7,7 @@ import { getTeacherEventAttendance, type TeacherEventAttendance } from '@/lib/at
 import { useAuth } from '@/lib/auth';
 import { getAttendanceHistory, type AttendanceRecord } from '@/lib/attendance';
 import { getProfile, type Role } from '@/lib/profiles';
+import { useRealtimeRefresh } from '@/lib/realtime';
 
 export default function HistoryScreen() {
   const { user } = useAuth();
@@ -45,6 +46,9 @@ export default function HistoryScreen() {
       load();
     }, [load])
   );
+
+  // Live updates: refresh when attendance or events change.
+  useRealtimeRefresh('history', ['attendance', 'events'], load);
 
   const toggle = (eventId: string) =>
     setCollapsed((prev) => ({ ...prev, [eventId]: !prev[eventId] }));

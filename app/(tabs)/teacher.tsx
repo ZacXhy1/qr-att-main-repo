@@ -27,6 +27,7 @@ import {
   type CloudEvent,
 } from '@/lib/events';
 import { buildQRPayload } from '@/lib/qr';
+import { useRealtimeRefresh } from '@/lib/realtime';
 import { useRole } from '@/lib/role';
 
 function toLocalISO(date: Date) {
@@ -99,6 +100,14 @@ export default function TeacherScreen() {
         loadMyEvents();
       }
     }, [role, loadMyEvents])
+  );
+
+  // Live updates: e.g. an admin closes or edits one of your events.
+  useRealtimeRefresh(
+    'teacher-events',
+    ['events'],
+    loadMyEvents,
+    role === 'teacher' || role === 'admin'
   );
 
   const isAndroid = Platform.OS === 'android';

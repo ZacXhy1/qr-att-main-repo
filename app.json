@@ -37,7 +37,6 @@
           "backgroundColor": "#ffffff"
         }
       ],
-      "expo-sqlite",
       "@react-native-community/datetimepicker"
     ],
     "experiments": {

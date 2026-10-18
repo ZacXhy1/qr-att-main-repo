@@ -19,6 +19,7 @@ import Header from '@/components/Header';
 import PasswordInput from '@/components/PasswordInput';
 import { COLORS } from '@/constants/colors';
 import { requestPasswordReset, resetPasswordWithCode } from '@/lib/auth';
+import { validateEmail, validatePassword } from '@/lib/validation';
 
 type Step = 'email' | 'reset' | 'done';
 
@@ -39,8 +40,9 @@ export default function ForgotPasswordScreen() {
     setError(null);
     setInfo(null);
 
-    if (!email.trim()) {
-      setError('Please enter your email.');
+    const emailError = validateEmail(email);
+    if (emailError) {
+      setError(emailError);
       return;
     }
 
@@ -68,12 +70,13 @@ export default function ForgotPasswordScreen() {
       setError('All fields are required.');
       return;
     }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    const passwordError = validatePassword(password);
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
@@ -167,7 +170,7 @@ export default function ForgotPasswordScreen() {
                 <PasswordInput
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="At least 6 characters"
+                  placeholder="8+ characters, letters and numbers"
                   editable={!loading}
                 />
 
