@@ -95,7 +95,7 @@ export default function TeacherScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (role === 'teacher') {
+      if (role === 'teacher' || role === 'admin') {
         loadMyEvents();
       }
     }, [role, loadMyEvents])
@@ -255,12 +255,12 @@ export default function TeacherScreen() {
     );
   }
 
-  if (role !== 'teacher') {
+  if (role !== 'teacher' && role !== 'admin') {
     return (
       <View style={styles.centered}>
         <Ionicons name="lock-closed-outline" size={48} color={COLORS.textSecondary} />
-        <Text style={styles.lockTitle}>Teachers Only</Text>
-        <Text style={styles.lockText}>Only teacher accounts can create events.</Text>
+        <Text style={styles.lockTitle}>Teachers and Admins Only</Text>
+        <Text style={styles.lockText}>Only teacher and admin accounts can create events.</Text>
       </View>
     );
   }

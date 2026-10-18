@@ -106,6 +106,9 @@ export default function HistoryScreen() {
                         </View>
                       </View>
                       <Text style={styles.eventMeta}>{item.eventCode}</Text>
+                      <Text style={styles.eventMeta}>
+                        {item.presentCount} present · {item.lateCount} late
+                      </Text>
                       {item.startTime && (
                         <Text style={styles.eventMeta}>{formatDate(item.startTime)}</Text>
                       )}
@@ -121,7 +124,19 @@ export default function HistoryScreen() {
                     ) : (
                       item.attendees.map((a) => (
                         <View key={a.studentId + a.scannedAt} style={styles.attendeeRow}>
-                          <Text style={styles.attendeeName}>{shortId(a.studentId)}</Text>
+                          <Text style={styles.attendeeName}>
+                            {a.studentName ?? shortId(a.studentId)}
+                          </Text>
+                          <View
+                            style={[
+                              styles.statusPill,
+                              a.status === 'late' ? styles.pillLate : styles.pillPresent,
+                            ]}
+                          >
+                            <Text style={styles.statusPillText}>
+                              {a.status === 'late' ? 'Late' : 'Present'}
+                            </Text>
+                          </View>
                           <Text style={styles.attendeeTime}>{formatDate(a.scannedAt)}</Text>
                         </View>
                       ))
@@ -151,7 +166,19 @@ export default function HistoryScreen() {
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <Text style={styles.eventTitle}>{item.eventTitle}</Text>
+              <View style={styles.titleRow}>
+                <Text style={styles.eventTitle}>{item.eventTitle}</Text>
+                <View
+                  style={[
+                    styles.statusPill,
+                    item.status === 'late' ? styles.pillLate : styles.pillPresent,
+                  ]}
+                >
+                  <Text style={styles.statusPillText}>
+                    {item.status === 'late' ? 'Late' : 'Present'}
+                  </Text>
+                </View>
+              </View>
               <Text style={styles.eventMeta}>{item.eventId}</Text>
               <Text style={styles.eventMeta}>{formatDate(item.scannedAt)}</Text>
             </View>
@@ -172,6 +199,15 @@ function shortId(id: string) {
 }
 
 const styles = StyleSheet.create({
+  statusPill: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginHorizontal: 6,
+  },
+  pillPresent: { backgroundColor: '#2E7D5B' },
+  pillLate: { backgroundColor: '#C77700' },
+  statusPillText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

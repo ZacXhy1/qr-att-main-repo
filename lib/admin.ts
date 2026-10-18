@@ -104,3 +104,44 @@ export async function getStats(): Promise<AdminStats> {
     totalAttendance: attendanceRes.count ?? 0,
   };
 }
+
+/* ----------------------- Attendance records (admin) ----------------------- */
+
+export type AdminAttendance = {
+  id: string;
+  studentId: string;
+  eventId: string;
+  scannedAt: string;
+  status: 'present' | 'late';
+};
+
+// Most recent records first. Names/titles are matched on the screen using the
+// users and events it already loads.
+export async function getAllAttendance(limit = 100): Promise<AdminAttendance[]> {
+  const { data, error } = await supabase
+    .from('attendance')
+    .select('id, student_id, event_id, scanned_at, status')
+    .order('scanned_at', { ascending: false })
+    .limit(limit);
+
+  if (error || !data) return [];
+
+  return data.map((r: any) => ({
+    id: r.id,
+    studentId: r.student_id,
+    eventId: r.event_id,
+    scannedAt: r.scanned_at,
+    status: r.status === 'late' ? 'late' : 'present',
+  }));
+}
+
+export async function setAttendanceStatus(
+  attendanceId: string,
+  status: 'present' | 'late'
+): Promise<{ error: string | null }> {
+  const { error } = await supabase
+    .from('attendance')
+    .update({ status })
+    .eq('id', attendanceId);
+  return { error: error?.message ?? null };
+}

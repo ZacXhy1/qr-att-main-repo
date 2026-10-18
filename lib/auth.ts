@@ -78,3 +78,33 @@ export async function signOut() {
   supabase.auth.signOut().catch(() => {});
   return { error: null };
 }
+
+/* ----------------------- Password reset (email code) ----------------------- */
+
+// Step 1: email the user a recovery code.
+// NOTE: the "Reset Password" email template in Supabase must include {{ .Token }}.
+export async function requestPasswordReset(email: string) {
+  const { error } = await supabase.auth.resetPasswordForEmail(email);
+  return { error };
+}
+
+// Step 2: verify the code and set the new password.
+// verifyOtp briefly creates a recovery session on the Supabase client (we do NOT
+// call setAuth, so the app doesn't navigate). We sign out right after, so the
+// user logs in with the new password.
+export async function resetPasswordWithCode(
+  email: string,
+  code: string,
+  newPassword: string
+) {
+  const { error: verifyError } = await supabase.auth.verifyOtp({
+    email,
+    token: code,
+    type: 'recovery',
+  });
+  if (verifyError) return { error: verifyError };
+
+  const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+  await supabase.auth.signOut().catch(() => {});
+  return { error: updateError };
+}

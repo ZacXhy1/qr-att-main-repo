@@ -16,6 +16,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppButton from '@/components/AppButton';
 import Header from '@/components/Header';
+import PasswordInput from '@/components/PasswordInput';
 import { COLORS } from '@/constants/colors';
 import { signIn } from '@/lib/auth';
 
@@ -80,15 +81,16 @@ export default function LoginScreen() {
               />
 
               <Text style={styles.label}>Password</Text>
-              <TextInput
-                style={styles.input}
+              <PasswordInput
                 value={password}
                 onChangeText={setPassword}
                 placeholder="Enter your password"
-                placeholderTextColor={COLORS.textSecondary}
-                secureTextEntry
                 editable={!loading}
               />
+
+              <Link href="/forgot-password" style={styles.forgot}>
+                Forgot password?
+              </Link>
 
               {error && <Text style={styles.error}>{error}</Text>}
 
@@ -165,6 +167,13 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: COLORS.textPrimary,
+  },
+  forgot: {
+    fontSize: 14,
+    color: COLORS.primary,
+    fontWeight: '600',
+    textAlign: 'right',
+    marginTop: 10,
   },
   error: {
     fontSize: 14,

@@ -5,11 +5,15 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { COLORS } from '@/constants/colors';
 import {
+  deleteAttendanceRecord,
   deleteEvent,
+  getAllAttendance,
   getAllEvents,
   getAllUsers,
   getStats,
+  setAttendanceStatus,
   setUserRole,
+  type AdminAttendance,
   type AdminEvent,
   type AdminStats,
   type AdminUser,
@@ -25,14 +29,21 @@ export default function AdminScreen() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [events, setEvents] = useState<AdminEvent[]>([]);
+  const [records, setRecords] = useState<AdminAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [s, u, e] = await Promise.all([getStats(), getAllUsers(), getAllEvents()]);
+    const [s, u, e, a] = await Promise.all([
+      getStats(),
+      getAllUsers(),
+      getAllEvents(),
+      getAllAttendance(),
+    ]);
     setStats(s);
     setUsers(u);
     setEvents(e);
+    setRecords(a);
     setLoading(false);
   }, []);
 
@@ -85,6 +96,42 @@ export default function AdminScreen() {
         },
       ]
     );
+  };
+
+  const handleToggleStatus = async (rec: AdminAttendance) => {
+    const next = rec.status === 'late' ? 'present' : 'late';
+    const { error } = await setAttendanceStatus(rec.id, next);
+    if (error) {
+      Alert.alert('Error', error);
+      return;
+    }
+    setRecords((prev) => prev.map((r) => (r.id === rec.id ? { ...r, status: next } : r)));
+  };
+
+  const handleDeleteRecord = (rec: AdminAttendance) => {
+    Alert.alert('Delete attendance record?', 'This cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          const { error } = await deleteAttendanceRecord(rec.id);
+          if (error) {
+            Alert.alert('Error', error);
+            return;
+          }
+          setRecords((prev) => prev.filter((r) => r.id !== rec.id));
+          setStats((prev) =>
+            prev ? { ...prev, totalAttendance: prev.totalAttendance - 1 } : prev
+          );
+          setEvents((prev) =>
+            prev.map((e) =>
+              e.id === rec.eventId ? { ...e, attendeeCount: Math.max(0, e.attendeeCount - 1) } : e
+            )
+          );
+        },
+      },
+    ]);
   };
 
   if (roleLoading) {
@@ -181,11 +228,58 @@ export default function AdminScreen() {
           </View>
         ))
       )}
+
+      <Text style={styles.sectionTitle}>Attendance Records</Text>
+      {records.length === 0 ? (
+        <Text style={styles.subtitle}>No attendance has been recorded yet.</Text>
+      ) : (
+        records.map((r) => {
+          const student = users.find((u) => u.id === r.studentId);
+          const event = events.find((e) => e.id === r.eventId);
+          return (
+            <View key={r.id} style={styles.card}>
+              <View style={styles.eventRow}>
+                <View style={styles.eventInfo}>
+                  <Text style={styles.userName}>
+                    {student?.full_name || student?.email || 'Unknown student'}
+                  </Text>
+                  <Text style={styles.userMeta}>{event?.title ?? 'Unknown event'}</Text>
+                  <Text style={styles.userMeta}>{new Date(r.scannedAt).toLocaleString()}</Text>
+                  <Pressable
+                    style={[
+                      styles.statusPill,
+                      r.status === 'late' ? styles.pillLate : styles.pillPresent,
+                    ]}
+                    onPress={() => handleToggleStatus(r)}
+                  >
+                    <Text style={styles.statusPillText}>
+                      {r.status === 'late' ? 'Late' : 'Present'} · tap to change
+                    </Text>
+                  </Pressable>
+                </View>
+                <Pressable style={styles.deleteButton} onPress={() => handleDeleteRecord(r)}>
+                  <Ionicons name="trash-outline" size={20} color={COLORS.danger ?? '#B3261E'} />
+                </Pressable>
+              </View>
+            </View>
+          );
+        })
+      )}
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  statusPill: {
+    alignSelf: 'flex-start',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    marginTop: 6,
+  },
+  pillPresent: { backgroundColor: '#2E7D5B' },
+  pillLate: { backgroundColor: '#C77700' },
+  statusPillText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

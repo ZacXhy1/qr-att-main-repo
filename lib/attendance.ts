@@ -6,75 +6,72 @@ import { parseQRPayload } from './qr';
 /* Student: scan a QR code and record attendance                       */
 /* ------------------------------------------------------------------ */
 
+export type AttendanceStatus = 'present' | 'late';
+
 export type AttendanceRecord = {
   id: string;
   eventId: string;
   eventTitle: string;
   scannedAt: string;
+  status: AttendanceStatus;
 };
 
 export type RegisterResult = {
   success: boolean;
   message: string;
   eventTitle?: string;
+  status?: AttendanceStatus;
 };
 
 export async function registerAttendance(
   rawPayload: string,
   studentId: string
 ): Promise<RegisterResult> {
+  // 1. The QR must be a valid attendance QR.
   const parsed = parseQRPayload(rawPayload);
   if (!parsed.ok) {
     return { success: false, message: parsed.message };
   }
-  const payload = parsed.payload;
+
+  // 2. The event must already exist. Scanning never creates events, and the
+  //    time window / status come from the database, not from the QR text
+  //    (the QR could have been edited).
+  const event = await getEventByCode(parsed.payload.event);
+  if (!event) {
+    return {
+      success: false,
+      message: 'Event not found. This QR code is not valid.',
+    };
+  }
+
+  if (event.status === 'closed') {
+    return { success: false, message: 'This event is closed.', eventTitle: event.title };
+  }
 
   const now = Date.now();
-  const start = payload.start ? new Date(payload.start).getTime() : null;
-  const end = payload.end ? new Date(payload.end).getTime() : null;
+  const start = event.start_time ? new Date(event.start_time).getTime() : null;
+  const end = event.end_time ? new Date(event.end_time).getTime() : null;
 
   if (start && now < start) {
-    return { success: false, message: 'Event has not started yet.' };
+    return { success: false, message: 'Event has not started yet.', eventTitle: event.title };
   }
   if (end && now > end) {
-    return { success: false, message: 'Event has already ended.' };
+    return { success: false, message: 'Event has already ended.', eventTitle: event.title };
   }
 
-  const title = payload.title ?? payload.event;
-  let event: { id: string; title: string } | null = null;
-
-  const foundEvent = await getEventByCode(payload.event);
-  if (foundEvent) {
-    if (foundEvent.status === 'closed') {
-      return { success: false, message: 'This event is closed.' };
-    }
-    event = foundEvent;
-  } else {
-    const { data: newEvent, error: insertError } = await supabase
-      .from('events')
-      .insert([
-        {
-          event_code: payload.event,
-          title,
-          start_time: payload.start ?? null,
-          end_time: payload.end ?? null,
-        },
-      ])
-      .select('id, title')
-      .single();
-
-    if (insertError) {
-      return { success: false, message: 'Could not create event.' };
-    }
-    event = newEvent;
-  }
-
-  const { error: attError } = await supabase.from('attendance').insert([
-    {
-      student_id: studentId,
-      event_id: event.id,
-    },
-  ]);
+  // 3. Record attendance. The database enforces the same rules again
+  //    (student role, open event, time window, one record per student/event).
+  // The database decides present/late (trigger), so it can't be faked.
+  const { data: inserted, error: attError } = await supabase
+    .from('attendance')
+    .insert([
+      {
+        student_id: studentId,
+        event_id: event.id,
+      },
+    ])
+    .select('status')
+    .single();
 
   if (attError) {
     if (attError.code === '23505') {
@@ -84,10 +81,26 @@ export async function registerAttendance(
         eventTitle: event.title,
       };
     }
+    if (attError.code === '42501') {
+      return {
+        success: false,
+        message: 'You are not allowed to record attendance for this event right now.',
+        eventTitle: event.title,
+      };
+    }
     return { success: false, message: attError.message };
   }
 
-  return { success: true, message: 'Attendance recorded!', eventTitle: event.title };
+  const status: AttendanceStatus = inserted?.status === 'late' ? 'late' : 'present';
+  return {
+    success: true,
+    message:
+      status === 'late'
+        ? 'Attendance recorded, but you were marked LATE.'
+        : 'Attendance recorded!',
+    eventTitle: event.title,
+    status,
+  };
 }
 
 export async function getAttendanceHistory(
@@ -95,7 +108,7 @@ export async function getAttendanceHistory(
 ): Promise<AttendanceRecord[]> {
   const { data, error } = await supabase
     .from('attendance')
-    .select('id, scanned_at, events ( event_code, title )')
+    .select('id, scanned_at, status, events ( event_code, title )')
     .eq('student_id', studentId)
     .order('scanned_at', { ascending: false });
 
@@ -108,6 +121,7 @@ export async function getAttendanceHistory(
     eventId: row.events?.event_code ?? '',
     eventTitle: row.events?.title ?? '',
     scannedAt: row.scanned_at,
+    status: (row.status === 'late' ? 'late' : 'present') as AttendanceStatus,
   }));
 }
 
@@ -124,9 +138,13 @@ export type TeacherEventAttendance = {
   venue: string | null;
   status: 'open' | 'closed';
   attendeeCount: number;
+  presentCount: number;
+  lateCount: number;
   attendees: {
     studentId: string;
+    studentName: string | null;
     scannedAt: string;
+    status: AttendanceStatus;
   }[];
 };
 
@@ -154,11 +172,24 @@ export async function getTeacherEventAttendance(
 
   const { data: attendance, error: attError } = await supabase
     .from('attendance')
-    .select('student_id, scanned_at, event_id')
+    .select('student_id, scanned_at, event_id, status')
     .in('event_id', eventIds)
     .order('scanned_at', { ascending: false });
 
   if (attError || !attendance) return [];
+
+  // Look up student names (teachers may read profiles of their attendees).
+  const studentIds = Array.from(new Set(attendance.map((a: any) => a.student_id as string)));
+  const names: Record<string, string> = {};
+  if (studentIds.length > 0) {
+    const { data: profs } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', studentIds);
+    (profs ?? []).forEach((p: any) => {
+      names[p.id] = p.full_name || p.email;
+    });
+  }
 
   return events.map((e: any) => {
     const rows = attendance.filter((a: any) => a.event_id === e.id);
@@ -171,9 +202,13 @@ export async function getTeacherEventAttendance(
       venue: e.venue,
       status: e.status,
       attendeeCount: rows.length,
+      presentCount: rows.filter((a: any) => a.status !== 'late').length,
+      lateCount: rows.filter((a: any) => a.status === 'late').length,
       attendees: rows.map((a: any) => ({
         studentId: a.student_id,
+        studentName: names[a.student_id] ?? null,
         scannedAt: a.scanned_at,
+        status: (a.status === 'late' ? 'late' : 'present') as AttendanceStatus,
       })),
     };
   });

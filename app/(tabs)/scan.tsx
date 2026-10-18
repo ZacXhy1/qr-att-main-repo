@@ -1,5 +1,6 @@
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -16,6 +17,7 @@ export default function ScanScreen() {
   const [lastData, setLastData] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [importing, setImporting] = useState(false);
   const { user } = useAuth();
   const { role, loading: roleLoading } = useRole();
 
@@ -78,6 +80,40 @@ const handleScanAgain = () => {
   setMessage(null);
 };
 
+// Pick a photo/screenshot from the gallery and look for a QR code in it.
+const handleImportImage = async () => {
+  if (importing) return;
+  setMessage(null);
+
+  try {
+    const picked = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 1,
+    });
+    if (picked.canceled || !picked.assets?.length) return;
+
+    setImporting(true);
+    const results = await scanFromURLAsync(picked.assets[0].uri, ['qr']);
+
+    if (!results.length) {
+      setScanned(true);
+      setLastData(null);
+      setSuccess(false);
+      setMessage('No QR code found in that image. Try a clearer, closer picture.');
+      return;
+    }
+
+    // Same path as a live camera scan.
+    handleBarcodeScanned({ data: results[0].data });
+  } catch {
+    setScanned(true);
+    setLastData(null);
+    setSuccess(false);
+    setMessage('Could not read that image. Please try another one.');
+  } finally {
+    setImporting(false);
+  }
+};
 
   return (
     <View style={styles.container}>
@@ -106,12 +142,19 @@ const handleScanAgain = () => {
         )}
 
 
-        {scanned && (
+        {scanned ? (
           <AppButton
             theme="primary"
             title="Scan Again"
             icon="refresh"
-            onPress={() => setScanned(false)}
+            onPress={handleScanAgain}
+          />
+        ) : (
+          <AppButton
+            title={importing ? 'Reading image...' : 'Upload from Gallery'}
+            icon="image-outline"
+            disabled={importing}
+            onPress={handleImportImage}
           />
         )}
       </View>

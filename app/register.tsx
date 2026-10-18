@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import AppButton from '@/components/AppButton';
 import Header from '@/components/Header';
+import PasswordInput from '@/components/PasswordInput';
 import { COLORS } from '@/constants/colors';
 import { signUp } from '@/lib/auth';
 
@@ -164,24 +165,18 @@ export default function RegisterScreen() {
                 />
 
                 <Text style={styles.label}>Password</Text>
-                <TextInput
-                  style={styles.input}
+                <PasswordInput
                   value={password}
                   onChangeText={setPassword}
                   placeholder="At least 6 characters"
-                  placeholderTextColor={COLORS.textSecondary}
-                  secureTextEntry
                   editable={!loading}
                 />
 
                 <Text style={styles.label}>Confirm Password</Text>
-                <TextInput
-                  style={styles.input}
+                <PasswordInput
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   placeholder="Re-enter your password"
-                  placeholderTextColor={COLORS.textSecondary}
-                  secureTextEntry
                   editable={!loading}
                 />
 
