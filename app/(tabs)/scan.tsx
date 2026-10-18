@@ -27,13 +27,15 @@ export default function ScanScreen() {
     );
   }
 
-  if (role === 'teacher') {
+  if (role !== 'student') {
     return (
       <View style={styles.centered}>
         <Ionicons name="lock-closed-outline" size={48} color={COLORS.textSecondary} />
         <Text style={styles.lockTitle}>Students Only</Text>
         <Text style={styles.lockText}>
-          Teacher accounts create events instead of scanning. Use the Teacher tab to generate a QR code.
+          {role === 'teacher'
+            ? 'Teacher accounts create events instead of scanning. Use the Teacher tab to generate a QR code.'
+            : 'Admin accounts manage users and events instead of scanning. Use the Admin tab to view attendance.'}
         </Text>
       </View>
     );

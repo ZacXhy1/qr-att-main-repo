@@ -45,6 +45,9 @@ export async function registerAttendance(
 
   const foundEvent = await getEventByCode(payload.event);
   if (foundEvent) {
+    if (foundEvent.status === 'closed') {
+      return { success: false, message: 'This event is closed.' };
+    }
     event = foundEvent;
   } else {
     const { data: newEvent, error: insertError } = await supabase
@@ -118,6 +121,8 @@ export type TeacherEventAttendance = {
   title: string;
   startTime: string | null;
   endTime: string | null;
+  venue: string | null;
+  status: 'open' | 'closed';
   attendeeCount: number;
   attendees: {
     studentId: string;
@@ -129,6 +134,7 @@ export type TeacherEventSummary = {
   eventId: string;
   eventCode: string;
   title: string;
+  status: 'open' | 'closed';
   attendeeCount: number;
 };
 
@@ -137,7 +143,7 @@ export async function getTeacherEventAttendance(
 ): Promise<TeacherEventAttendance[]> {
   const { data: events, error: eventError } = await supabase
     .from('events')
-    .select('id, event_code, title, start_time, end_time')
+    .select('id, event_code, title, start_time, end_time, venue, status')
     .eq('created_by', teacherId)
     .order('created_at', { ascending: false });
 
@@ -162,6 +168,8 @@ export async function getTeacherEventAttendance(
       title: e.title,
       startTime: e.start_time,
       endTime: e.end_time,
+      venue: e.venue,
+      status: e.status,
       attendeeCount: rows.length,
       attendees: rows.map((a: any) => ({
         studentId: a.student_id,
@@ -179,6 +187,7 @@ export async function getTeacherEventSummary(
     eventId: e.eventId,
     eventCode: e.eventCode,
     title: e.title,
+    status: e.status,
     attendeeCount: e.attendeeCount,
   }));
 }

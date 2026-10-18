@@ -58,6 +58,19 @@ export default function HistoryScreen() {
     );
   }
 
+  /* -------------------------- Admin view -------------------------- */
+  if (role === 'admin') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Attendance History</Text>
+        <Text style={styles.subtitle}>
+          Admin accounts don't scan attendance themselves. Use the Admin tab to view
+          attendance across every event.
+        </Text>
+      </View>
+    );
+  }
+
   /* -------------------------- Teacher view -------------------------- */
   if (role === 'teacher') {
     return (
@@ -79,7 +92,19 @@ export default function HistoryScreen() {
                 <View style={styles.card}>
                   <Pressable style={styles.cardHeader} onPress={() => toggle(item.eventId)}>
                     <View style={styles.cardHeaderText}>
-                      <Text style={styles.eventTitle}>{item.title}</Text>
+                      <View style={styles.titleRow}>
+                        <Text style={styles.eventTitle}>{item.title}</Text>
+                        <View
+                          style={[
+                            styles.statusBadge,
+                            item.status === 'closed' ? styles.statusClosed : styles.statusOpen,
+                          ]}
+                        >
+                          <Text style={styles.statusBadgeText}>
+                            {item.status === 'closed' ? 'Closed' : 'Open'}
+                          </Text>
+                        </View>
+                      </View>
                       <Text style={styles.eventMeta}>{item.eventCode}</Text>
                       {item.startTime && (
                         <Text style={styles.eventMeta}>{formatDate(item.startTime)}</Text>
@@ -185,11 +210,32 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   cardHeaderText: { flex: 1, paddingRight: 12 },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   eventTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.textPrimary,
-    marginBottom: 4,
+  },
+  statusBadge: {
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  statusOpen: {
+    backgroundColor: '#2E7D5B',
+  },
+  statusClosed: {
+    backgroundColor: COLORS.textSecondary,
+  },
+  statusBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   eventMeta: {
     fontSize: 13,

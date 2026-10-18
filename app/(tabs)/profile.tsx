@@ -60,7 +60,14 @@ export default function ProfileScreen() {
     }
   };
 
-  const isTeacher = profile?.role === 'teacher';
+  const roleLabel =
+    profile?.role === 'admin' ? 'Admin' : profile?.role === 'teacher' ? 'Teacher' : 'Student';
+  const roleBadgeStyle =
+    profile?.role === 'admin'
+      ? styles.roleBadgeAdmin
+      : profile?.role === 'teacher'
+      ? undefined
+      : styles.roleBadgeStudent;
 
   return (
     <View style={styles.container}>
@@ -68,8 +75,8 @@ export default function ProfileScreen() {
 
       {user && (
         <View style={styles.infoCard}>
-          <View style={[styles.roleBadge, !isTeacher && styles.roleBadgeStudent]}>
-            <Text style={styles.roleBadgeText}>{isTeacher ? 'Teacher' : 'Student'}</Text>
+          <View style={[styles.roleBadge, roleBadgeStyle]}>
+            <Text style={styles.roleBadgeText}>{roleLabel}</Text>
           </View>
 
           <Text style={styles.label}>Full Name</Text>
@@ -146,6 +153,9 @@ const styles = StyleSheet.create({
   },
   roleBadgeStudent: {
     backgroundColor: COLORS.textSecondary,
+  },
+  roleBadgeAdmin: {
+    backgroundColor: '#5B3A9E',
   },
   roleBadgeText: {
     color: '#FFFFFF',
