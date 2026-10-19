@@ -33,19 +33,25 @@ export default function AdminScreen() {
   const [events, setEvents] = useState<AdminEvent[]>([]);
   const [records, setRecords] = useState<AdminAttendance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const [s, u, e, a] = await Promise.all([
-      getStats(),
-      getAllUsers(),
-      getAllEvents(),
-      getAllAttendance(),
-    ]);
-    setStats(s);
-    setUsers(u);
-    setEvents(e);
-    setRecords(a);
+    try {
+      const [s, u, e, a] = await Promise.all([
+        getStats(),
+        getAllUsers(),
+        getAllEvents(),
+        getAllAttendance(),
+      ]);
+      setStats(s);
+      setUsers(u);
+      setEvents(e);
+      setRecords(a);
+      setLoadError(null);
+    } catch (err: any) {
+      setLoadError(err?.message ?? 'Something went wrong.');
+    }
     setLoading(false);
   }, []);
 
@@ -165,6 +171,21 @@ export default function AdminScreen() {
     );
   }
 
+  if (loadError) {
+    return (
+      <View style={styles.centered}>
+        <Text style={[styles.subtitle, { color: COLORS.danger }]}>
+          Could not load admin data: {loadError}
+        </Text>
+        <Pressable onPress={load}>
+          <Text style={[styles.subtitle, { color: COLORS.primary, fontWeight: '600' }]}>
+            Tap to retry
+          </Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
       <Text style={styles.title}>Admin Dashboard</Text>
@@ -223,7 +244,9 @@ export default function AdminScreen() {
             <View style={styles.eventRow}>
               <View style={styles.eventInfo}>
                 <Text style={styles.userName}>{e.title}</Text>
-                <Text style={styles.userMeta}>{e.eventCode}</Text>
+                <Text style={styles.userMeta}>
+                  {e.eventCode} · {e.status === 'closed' ? 'Closed' : 'Open'}
+                </Text>
                 <Text style={styles.userMeta}>{e.attendeeCount} attendee(s)</Text>
               </View>
               <Pressable style={styles.deleteButton} onPress={() => handleDeleteEvent(e)}>

@@ -1,4 +1,5 @@
 import { useFocusEffect } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -17,8 +18,10 @@ export default function HistoryScreen() {
   const [role, setRole] = useState<Role | null>(null);
   const [studentRecords, setStudentRecords] = useState<AttendanceRecord[]>([]);
   const [teacherEvents, setTeacherEvents] = useState<TeacherEventAttendance[]>([]);
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  // Attendee tables stay hidden until the event card is tapped.
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Re-render every 30 s so Upcoming / Open now / Ended badges stay current.
   const [now, setNow] = useState(Date.now());
@@ -33,18 +36,23 @@ export default function HistoryScreen() {
       return;
     }
 
-    const profile = await getProfile(user.id);
-    const currentRole: Role = profile?.role ?? 'student';
-    setRole(currentRole);
+    try {
+      const profile = await getProfile(user.id);
+      const currentRole: Role = profile?.role ?? 'student';
+      setRole(currentRole);
 
-    if (currentRole === 'teacher' || currentRole === 'admin') {
-      const events = await getTeacherEventAttendance(user.id);
-      setTeacherEvents(events);
-      setStudentRecords([]);
-    } else {
-      const records = await getAttendanceHistory(user.id);
-      setStudentRecords(records);
-      setTeacherEvents([]);
+      if (currentRole === 'teacher' || currentRole === 'admin') {
+        const events = await getTeacherEventAttendance(user.id);
+        setTeacherEvents(events);
+        setStudentRecords([]);
+      } else {
+        const records = await getAttendanceHistory(user.id);
+        setStudentRecords(records);
+        setTeacherEvents([]);
+      }
+      setLoadError(null);
+    } catch (e: any) {
+      setLoadError(e?.message ?? 'Something went wrong.');
     }
 
     setLoading(false);
@@ -60,13 +68,29 @@ export default function HistoryScreen() {
   useRealtimeRefresh('history', ['attendance', 'events'], load);
 
   const toggle = (eventId: string) =>
-    setCollapsed((prev) => ({ ...prev, [eventId]: !prev[eventId] }));
+    setExpanded((prev) => ({ ...prev, [eventId]: !prev[eventId] }));
 
   if (loading) {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Attendance History</Text>
         <Text style={styles.subtitle}>Loading records...</Text>
+      </View>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Attendance History</Text>
+        <Text style={[styles.subtitle, { color: COLORS.danger }]}>
+          Could not load records: {loadError}
+        </Text>
+        <Pressable onPress={load}>
+          <Text style={[styles.subtitle, { color: COLORS.primary, fontWeight: '600' }]}>
+            Tap to retry
+          </Text>
+        </Pressable>
       </View>
     );
   }
@@ -87,13 +111,13 @@ export default function HistoryScreen() {
             keyExtractor={(item) => item.eventId}
             contentContainerStyle={styles.list}
             renderItem={({ item }) => {
-              const isCollapsed = !!collapsed[item.eventId];
+              const isOpen = !!expanded[item.eventId];
               return (
                 <View style={styles.card}>
                   <Pressable style={styles.cardHeader} onPress={() => toggle(item.eventId)}>
                     <View style={styles.cardHeaderText}>
-                      <View style={styles.titleRow}>
-                        <Text style={styles.eventTitle}>{item.title}</Text>
+                      <Text style={styles.eventTitle}>{item.title}</Text>
+                      <View style={styles.badgeRow}>
                         <View
                           style={[
                             styles.statusBadge,
@@ -113,12 +137,20 @@ export default function HistoryScreen() {
                         <Text style={styles.eventMeta}>{formatDateTime12(item.startTime)}</Text>
                       )}
                     </View>
-                    <View style={styles.countBadge}>
-                      <Text style={styles.countText}>{item.attendeeCount}</Text>
+                    <View style={styles.headerRight}>
+                      <View style={styles.countBadge}>
+                        <Text style={styles.countText}>{item.attendeeCount}</Text>
+                      </View>
+                      <Ionicons
+                        name={isOpen ? 'chevron-up' : 'chevron-down'}
+                        size={18}
+                        color={COLORS.textSecondary}
+                        style={styles.chevron}
+                      />
                     </View>
                   </Pressable>
 
-                  {!isCollapsed &&
+                  {isOpen &&
                     (item.attendees.length === 0 ? (
                       <Text style={styles.emptyAttendees}>No one has scanned yet.</Text>
                     ) : (
@@ -181,11 +213,12 @@ export default function HistoryScreen() {
           contentContainerStyle={styles.list}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              <View style={styles.titleRow}>
-                <Text style={styles.eventTitle}>{item.eventTitle}</Text>
+              <Text style={styles.eventTitle}>{item.eventTitle}</Text>
+              <View style={styles.badgeRow}>
                 <View
                   style={[
                     styles.statusPill,
+                    { marginHorizontal: 0 },
                     item.status === 'late' ? styles.pillLate : styles.pillPresent,
                   ]}
                 >
@@ -283,6 +316,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     marginBottom: 4,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  headerRight: {
+    alignItems: 'center',
+  },
+  chevron: {
+    marginTop: 6,
   },
   eventTitle: {
     flexShrink: 1,

@@ -15,6 +15,7 @@ export type AdminEvent = {
   startTime: string | null;
   endTime: string | null;
   createdBy: string | null;
+  status: 'open' | 'closed';
   attendeeCount: number;
 };
 
@@ -30,8 +31,8 @@ export async function getAllUsers(): Promise<AdminUser[]> {
     .select('id, email, full_name, role')
     .order('email', { ascending: true });
 
-  if (error || !data) return [];
-  return data as AdminUser[];
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AdminUser[];
 }
 
 export async function setUserRole(
@@ -49,10 +50,11 @@ export async function setUserRole(
 export async function getAllEvents(): Promise<AdminEvent[]> {
   const { data: events, error } = await supabase
     .from('events')
-    .select('id, event_code, title, start_time, end_time, created_by')
+    .select('id, event_code, title, start_time, end_time, created_by, status')
     .order('created_at', { ascending: false });
 
-  if (error || !events) return [];
+  if (error) throw new Error(error.message);
+  if (!events) return [];
 
   const eventIds = events.map((e: any) => e.id);
   const counts: Record<string, number> = {};
@@ -75,6 +77,7 @@ export async function getAllEvents(): Promise<AdminEvent[]> {
     startTime: e.start_time,
     endTime: e.end_time,
     createdBy: e.created_by,
+    status: e.status === 'closed' ? 'closed' : 'open',
     attendeeCount: counts[e.id] ?? 0,
   }));
 }
@@ -124,9 +127,9 @@ export async function getAllAttendance(limit = 100): Promise<AdminAttendance[]> 
     .order('scanned_at', { ascending: false })
     .limit(limit);
 
-  if (error || !data) return [];
+  if (error) throw new Error(error.message);
 
-  return data.map((r: any) => ({
+  return (data ?? []).map((r: any) => ({
     id: r.id,
     studentId: r.student_id,
     eventId: r.event_id,

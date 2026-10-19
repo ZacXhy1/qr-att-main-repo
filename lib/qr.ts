@@ -1,6 +1,7 @@
 export type QRPayload = {
   v: 1;
   event: string;
+  t: string; // secret token, checked by the database
   title?: string;
   start?: string;
   end?: string;
@@ -9,12 +10,14 @@ export type QRPayload = {
 export function buildQRPayload(event: {
   eventId: string;
   title: string;
+  token: string;
   start?: string;
   end?: string;
 }): string {
   const payload: QRPayload = {
     v: 1,
     event: event.eventId,
+    t: event.token,
   };
 
   if (event.title) payload.title = event.title;
@@ -36,7 +39,8 @@ export function parseQRPayload(raw: string): ParseQRResult {
     return { ok: false, message: 'Invalid QR code.' };
   }
 
-  if (parsed.v !== 1 || typeof parsed.event !== 'string' || !parsed.event) {
+  if (parsed.v !== 1 || typeof parsed.event !== 'string' || !parsed.event ||
+      typeof parsed.t !== 'string' || !parsed.t) {
     return { ok: false, message: 'Not an attendance QR code.' };
   }
 

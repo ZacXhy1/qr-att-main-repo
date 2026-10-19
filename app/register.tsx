@@ -7,7 +7,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Pressable,
   ActivityIndicator,
   TouchableWithoutFeedback,
   Keyboard,
@@ -26,7 +25,6 @@ export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'student' | 'teacher'>('student');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -65,7 +63,7 @@ export default function RegisterScreen() {
       const { data, error: authError } = await signUp(
         email.trim(),
         password,
-        { full_name: fullName.trim(), role }
+        { full_name: fullName.trim(), role: 'student' }
       );
 
       if (authError) {
@@ -128,37 +126,10 @@ export default function RegisterScreen() {
                   editable={!loading}
                 />
 
-                <Text style={styles.label}>I am a...</Text>
-                <View style={styles.roleRow}>
-                  <Pressable
-                    style={[styles.roleChip, role === 'student' && styles.roleChipActive]}
-                    onPress={() => setRole('student')}
-                    disabled={loading}
-                  >
-                    <Text
-                      style={[
-                        styles.roleChipText,
-                        role === 'student' && styles.roleChipTextActive,
-                      ]}
-                    >
-                      Student
-                    </Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.roleChip, role === 'teacher' && styles.roleChipActive]}
-                    onPress={() => setRole('teacher')}
-                    disabled={loading}
-                  >
-                    <Text
-                      style={[
-                        styles.roleChipText,
-                        role === 'teacher' && styles.roleChipTextActive,
-                      ]}
-                    >
-                      Teacher
-                    </Text>
-                  </Pressable>
-                </View>
+                <Text style={styles.hint}>
+                  New accounts are student accounts. Teacher and admin access is
+                  given by an administrator.
+                </Text>
 
                 <Text style={styles.label}>Email</Text>
                 <TextInput
@@ -265,6 +236,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     color: COLORS.textPrimary,
+  },
+  hint: {
+    fontSize: 13,
+    color: COLORS.textSecondary,
+    marginTop: 12,
   },
   roleRow: {
     flexDirection: 'row',

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   Alert,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -21,8 +22,11 @@ import { COLORS } from '@/constants/colors';
 import { useAuth } from '@/lib/auth';
 import {
   createEvent,
+  getEventByCode,
+  getEventSecret,
   getEventsByTeacher,
   getEventState,
+  rotateEventSecret,
   setEventStatus,
   updateEvent,
   type CloudEvent,
@@ -32,6 +36,14 @@ import { formatDateOnly, formatDateTime12, formatTime12 } from '@/lib/format';
 import { buildQRPayload } from '@/lib/qr';
 import { useRealtimeRefresh } from '@/lib/realtime';
 import { useRole } from '@/lib/role';
+
+// Random, readable event code, e.g. EVT-2026-K7M2QX (no 0/O/1/I look-alikes).
+function generateEventCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let suffix = '';
+  for (let i = 0; i < 6; i++) suffix += chars[Math.floor(Math.random() * chars.length)];
+  return `EVT-${new Date().getFullYear()}-${suffix}`;
+}
 
 function toLocalISO(date: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
@@ -72,6 +84,7 @@ export default function TeacherScreen() {
   const [title, setTitle] = useState('');
   const [eventId, setEventId] = useState('');
   const [venue, setVenue] = useState('');
+  const [graceMinutes, setGraceMinutes] = useState('15');
   const [description, setDescription] = useState('');
   const [startDate, setStartDate] = useState(() => new Date());
   const [endDate, setEndDate] = useState(
@@ -80,6 +93,10 @@ export default function TeacherScreen() {
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [editingPart, setEditingPart] = useState<'date' | 'time'>('date');
   const [payload, setPayload] = useState<string | null>(null);
+
+  // QR for an existing event ("Show QR" on a My Events card), shown in a modal.
+  const [qrModal, setQrModal] = useState<{ event: CloudEvent; payload: string } | null>(null);
+  const [qrBusy, setQrBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   // Editing an existing event instead of creating a new one.
@@ -88,6 +105,7 @@ export default function TeacherScreen() {
   // "My Events" - the teacher's own events, so they can edit/close/reopen.
   const [myEvents, setMyEvents] = useState<CloudEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
+  const [eventsError, setEventsError] = useState<string | null>(null);
   const [busyEventId, setBusyEventId] = useState<string | null>(null);
 
   const loadMyEvents = useCallback(async () => {
@@ -95,8 +113,13 @@ export default function TeacherScreen() {
       setEventsLoading(false);
       return;
     }
-    const events = await getEventsByTeacher(user.id);
-    setMyEvents(events);
+    try {
+      const events = await getEventsByTeacher(user.id);
+      setMyEvents(events);
+      setEventsError(null);
+    } catch (e: any) {
+      setEventsError(e?.message ?? 'Something went wrong.');
+    }
     setEventsLoading(false);
   }, [user]);
 
@@ -161,6 +184,7 @@ export default function TeacherScreen() {
     setTitle('');
     setEventId('');
     setVenue('');
+    setGraceMinutes('15');
     setDescription('');
     setStartDate(new Date());
     setEndDate(new Date(Date.now() + 60 * 60 * 1000));
@@ -173,6 +197,7 @@ export default function TeacherScreen() {
     setTitle(event.title);
     setEventId(event.event_code);
     setVenue(event.venue ?? '');
+    setGraceMinutes(String(event.grace_minutes ?? 15));
     setDescription(event.description ?? '');
     setStartDate(event.start_time ? new Date(event.start_time) : new Date());
     setEndDate(
@@ -182,9 +207,77 @@ export default function TeacherScreen() {
     setMessage(null);
   };
 
+  // Builds the QR (event code + secret token). The secret comes from the DB.
+  const showQR = async (event: { eventId: string; title: string; start: string; end: string }) => {
+    const token = await getEventSecret(event.eventId);
+    if (!token) {
+      setPayload(null);
+      setMessage('Saved, but the QR secret could not be loaded. Pull to refresh and try again.');
+      return;
+    }
+    setPayload(buildQRPayload({ ...event, token }));
+  };
+
+  const buildEventQR = async (event: CloudEvent): Promise<string | null> => {
+    const token = await getEventSecret(event.event_code);
+    if (!token) return null;
+    return buildQRPayload({
+      eventId: event.event_code,
+      title: event.title,
+      token,
+      start: event.start_time ?? undefined,
+      end: event.end_time ?? undefined,
+    });
+  };
+
+  const handleShowQR = async (event: CloudEvent) => {
+    setBusyEventId(event.id);
+    const qr = await buildEventQR(event);
+    setBusyEventId(null);
+    if (!qr) {
+      Alert.alert('Error', 'Could not load the QR code for this event.');
+      return;
+    }
+    setQrModal({ event, payload: qr });
+  };
+
+  const handleRegenerateQR = () => {
+    if (!qrModal) return;
+    const { event } = qrModal;
+    Alert.alert(
+      'Regenerate QR code?',
+      'Every QR code already printed or shared for this event will stop working. Students must scan the new one.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Regenerate',
+          style: 'destructive',
+          onPress: async () => {
+            setQrBusy(true);
+            const { error } = await rotateEventSecret(event.id);
+            if (error) {
+              setQrBusy(false);
+              Alert.alert('Error', error);
+              return;
+            }
+            const qr = await buildEventQR(event);
+            setQrBusy(false);
+            if (!qr) {
+              setQrModal(null);
+              Alert.alert('Error', 'The QR was regenerated but could not be loaded. Tap Show QR again.');
+              return;
+            }
+            setPayload(null); // the QR under the form is now out of date
+            setQrModal({ event, payload: qr });
+          },
+        },
+      ]
+    );
+  };
+
   const handleSubmit = () => {
     const event = {
-      eventId: eventId.trim(),
+      eventId: editingEventId ? eventId.trim() : generateEventCode(),
       title: title.trim(),
       start: toLocalISO(startDate),
       end: toLocalISO(endDate),
@@ -192,8 +285,14 @@ export default function TeacherScreen() {
       description: description.trim(),
     };
 
-    if (!event.eventId || !event.title) {
-      setMessage('Event title and code are required.');
+    if (!/^\d+$/.test(graceMinutes.trim()) || Number(graceMinutes) > 1440) {
+      setMessage('"Late after" must be a whole number of minutes from 0 to 1440.');
+      return;
+    }
+    const grace = Number(graceMinutes);
+
+    if (!event.title) {
+      setMessage('Event title is required.');
       return;
     }
 
@@ -209,25 +308,34 @@ export default function TeacherScreen() {
         end: event.end,
         venue: event.venue,
         description: event.description,
+        graceMinutes: grace,
       }).then(({ error }) => {
         if (error) {
           setMessage(`Could not update the event: ${error}`);
           return;
         }
         setMessage('Event updated.');
-        setPayload(buildQRPayload(event));
+        showQR(event);
         loadMyEvents();
       });
       return;
     }
 
-    createEvent(event).then(({ error }) => {
+    createEvent({ ...event, graceMinutes: grace }).then(({ error }) => {
       if (error) {
         setMessage(`Could not save the event: ${error}`);
         return;
       }
       setMessage('Event saved! Scan the QR with the Scan tab to test it.');
-      setPayload(buildQRPayload(event));
+      showQR(event);
+      // Switch to edit mode so pressing Save again updates this event
+      // instead of creating a duplicate.
+      getEventByCode(event.eventId).then((created) => {
+        if (created) {
+          setEditingEventId(created.id);
+          setEventId(created.event_code);
+        }
+      });
       loadMyEvents();
     });
   };
@@ -304,19 +412,33 @@ export default function TeacherScreen() {
         placeholderTextColor={COLORS.textSecondary}
       />
 
-      <Text style={styles.label}>Event Code</Text>
-      <TextInput
-        style={[styles.input, !!editingEventId && styles.inputDisabled]}
-        value={eventId}
-        onChangeText={setEventId}
-        placeholder="e.g. EVT-2026-0002"
-        placeholderTextColor={COLORS.textSecondary}
-        autoCapitalize="characters"
-        editable={!editingEventId}
-      />
-      {editingEventId && (
-        <Text style={styles.hint}>The event code can't be changed once created.</Text>
+      {editingEventId ? (
+        <>
+          <Text style={styles.label}>Event Code</Text>
+          <TextInput
+            style={[styles.input, styles.inputDisabled]}
+            value={eventId}
+            editable={false}
+          />
+          <Text style={styles.hint}>The event code can't be changed once created.</Text>
+        </>
+      ) : (
+        <Text style={styles.hint}>An event code is generated automatically when you save.</Text>
       )}
+
+      <Text style={styles.label}>Late After (minutes)</Text>
+      <TextInput
+        style={styles.input}
+        value={graceMinutes}
+        onChangeText={(t) => setGraceMinutes(t.replace(/[^0-9]/g, ''))}
+        placeholder="15"
+        placeholderTextColor={COLORS.textSecondary}
+        keyboardType="number-pad"
+        maxLength={4}
+      />
+      <Text style={styles.hint}>
+        Students who scan more than this many minutes after the start time are marked Late.
+      </Text>
 
       <Text style={styles.label}>Venue</Text>
       <TextInput
@@ -419,6 +541,12 @@ export default function TeacherScreen() {
 
       {eventsLoading ? (
         <Text style={styles.subtitle}>Loading your events...</Text>
+      ) : eventsError ? (
+        <Pressable onPress={loadMyEvents}>
+          <Text style={[styles.subtitle, { color: COLORS.danger }]}>
+            Could not load your events: {eventsError}. Tap to retry.
+          </Text>
+        </Pressable>
       ) : myEvents.length === 0 ? (
         <Text style={styles.subtitle}>
           You haven't created any events yet. Use the form above.
@@ -448,6 +576,14 @@ export default function TeacherScreen() {
             </View>
 
             <View style={styles.eventCardActions}>
+              <Pressable
+                style={styles.smallButton}
+                onPress={() => handleShowQR(event)}
+                disabled={busyEventId === event.id}
+              >
+                <Ionicons name="qr-code-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.smallButtonText}>QR</Text>
+              </Pressable>
               <Pressable style={styles.smallButton} onPress={() => startEditing(event)}>
                 <Ionicons name="create-outline" size={16} color={COLORS.primary} />
                 <Text style={styles.smallButtonText}>Edit</Text>
@@ -474,6 +610,43 @@ export default function TeacherScreen() {
           </View>
         ))
       )}
+
+      <Modal
+        visible={!!qrModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setQrModal(null)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            {qrModal && (
+              <>
+                <Text style={styles.modalTitle}>{qrModal.event.title}</Text>
+                <Text style={styles.qrCaption}>{qrModal.event.event_code}</Text>
+                <View style={styles.qrBox}>
+                  <QRCode value={qrModal.payload} size={220} />
+                </View>
+                <View style={styles.modalActions}>
+                  <Pressable
+                    style={styles.smallButton}
+                    onPress={handleRegenerateQR}
+                    disabled={qrBusy}
+                  >
+                    <Ionicons name="refresh-outline" size={16} color={COLORS.danger} />
+                    <Text style={[styles.smallButtonText, { color: COLORS.danger }]}>
+                      {qrBusy ? '...' : 'Regenerate'}
+                    </Text>
+                  </Pressable>
+                  <Pressable style={styles.smallButton} onPress={() => setQrModal(null)}>
+                    <Ionicons name="close-outline" size={16} color={COLORS.primary} />
+                    <Text style={styles.smallButtonText}>Close</Text>
+                  </Pressable>
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -726,6 +899,33 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '700',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 16,
   },
   eventCardActions: {
     flexDirection: 'row',

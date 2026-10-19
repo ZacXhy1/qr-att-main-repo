@@ -9,6 +9,7 @@ export type Event = {
   end: string;
   venue?: string;
   description?: string;
+  graceMinutes?: number;
 };
 
 export type CloudEvent = {
@@ -19,6 +20,7 @@ export type CloudEvent = {
   end_time: string | null;
   venue: string | null;
   description: string | null;
+  grace_minutes: number;
   status: EventStatus;
   created_by: string | null;
   created_at: string;
@@ -40,7 +42,9 @@ export async function createEvent(
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { error } = await supabase.from('events').upsert(
+  // insert (not upsert) so a code that already exists is reported instead of
+  // trying to overwrite somebody else's event.
+  const { error } = await supabase.from('events').insert(
     {
       event_code: event.eventId,
       title: event.title,
@@ -48,11 +52,14 @@ export async function createEvent(
       end_time: toUtcISO(event.end),
       venue: event.venue?.trim() || null,
       description: event.description?.trim() || null,
+      grace_minutes: event.graceMinutes ?? 15,
       created_by: user?.id ?? null,
-    },
-    { onConflict: 'event_code' }
+    }
   );
 
+  if (error?.code === '23505') {
+    return { error: 'That event code is already taken. Please save again.' };
+  }
   return { error: error?.message ?? null };
 }
 
@@ -62,6 +69,7 @@ export type EventUpdate = {
   end?: string;
   venue?: string;
   description?: string;
+  graceMinutes?: number;
 };
 
 // Edits an existing event by its internal id. The event_code (used in the
@@ -78,6 +86,8 @@ export async function updateEvent(
   if (updates.description !== undefined) {
     payload.description = updates.description.trim() || null;
   }
+
+  if (updates.graceMinutes !== undefined) payload.grace_minutes = updates.graceMinutes;
 
   const { error } = await supabase.from('events').update(payload).eq('id', eventId);
   return { error: error?.message ?? null };
@@ -103,11 +113,30 @@ export async function getEventsByTeacher(
     .eq('created_by', teacherId)
     .order('created_at', { ascending: false });
 
-  if (error || !data) {
-    return [];
-  }
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CloudEvent[];
+}
 
-  return data as CloudEvent[];
+// Makes a new secret for the event, so every QR printed or shared before
+// stops working. Only the creator or an admin is allowed (checked in the DB).
+export async function rotateEventSecret(eventId: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.rpc('rotate_event_secret', { p_event_id: eventId });
+  return { error: error?.message ?? null };
+}
+
+// Reads the QR secret for an event. RLS only lets the event's creator (or an
+// admin) read it, so students get null.
+export async function getEventSecret(code: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('event_secrets ( secret )')
+    .eq('event_code', code)
+    .maybeSingle();
+
+  if (error || !data) return null;
+  const row: any = (data as any).event_secrets;
+  const secret = Array.isArray(row) ? row[0]?.secret : row?.secret;
+  return secret ?? null;
 }
 
 export async function getEventByCode(
