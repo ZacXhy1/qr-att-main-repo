@@ -4,6 +4,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { COLORS } from '@/constants/colors';
+import KeyboardAvoid from '@/components/KeyboardAvoid';
 import {
   deleteAttendanceRecord,
   deleteEvent,
@@ -324,6 +325,7 @@ export default function AdminScreen() {
       : 'No attendance has been recorded yet.';
 
   return (
+    <KeyboardAvoid>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.scrollContent}
@@ -542,6 +544,7 @@ export default function AdminScreen() {
         </Text>
       )}
     </ScrollView>
+    </KeyboardAvoid>
   );
 }
 

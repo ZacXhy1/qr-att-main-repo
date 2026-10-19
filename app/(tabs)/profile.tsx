@@ -5,6 +5,7 @@ import { useFocusEffect } from 'expo-router';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
+import KeyboardAvoid from '@/components/KeyboardAvoid';
 import { useAuth, signOut } from '@/lib/auth';
 import { getProfile, updateProfile, type Profile } from '@/lib/profiles';
 
@@ -135,6 +136,7 @@ export default function ProfileScreen() {
   ] as const;
 
   return (
+    <KeyboardAvoid>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -325,6 +327,7 @@ export default function ProfileScreen() {
         disabled={loading}
       />
     </ScrollView>
+    </KeyboardAvoid>
   );
 }
 

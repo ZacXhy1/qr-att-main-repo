@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { COLORS } from '@/constants/colors';
+import KeyboardAvoid from '@/components/KeyboardAvoid';
 import { getTeacherEventAttendance, type TeacherEventAttendance } from '@/lib/attendance';
 import { useAuth } from '@/lib/auth';
 import { getAttendanceHistory, type AttendanceRecord } from '@/lib/attendance';
@@ -167,6 +168,7 @@ export default function HistoryScreen() {
     const lateTotal = selected?.lateCount ?? 0;
 
     return (
+      <KeyboardAvoid>
       <View style={styles.container}>
         <Text style={styles.title}>Event Attendance</Text>
 
@@ -290,6 +292,7 @@ export default function HistoryScreen() {
           onRequestClose={() => setSelectedId(null)}
         >
           {selected && selectedState && (
+            <KeyboardAvoid>
             <View style={[styles.shContainer, { paddingTop: insets.top + 12 }]}>
               <View style={styles.shHeader}>
                 <Pressable style={styles.shClose} onPress={() => setSelectedId(null)} hitSlop={8}>
@@ -389,9 +392,11 @@ export default function HistoryScreen() {
                 )}
               />
             </View>
+            </KeyboardAvoid>
           )}
         </Modal>
       </View>
+      </KeyboardAvoid>
     );
   }
 

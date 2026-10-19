@@ -5,7 +5,6 @@ import {
   TextInput,
   View,
   KeyboardAvoidingView,
-  Platform,
   ScrollView,
   ActivityIndicator,
   TouchableWithoutFeedback,
@@ -86,8 +85,7 @@ export default function RegisterScreen() {
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior="padding"
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <ScrollView
@@ -96,7 +94,7 @@ export default function RegisterScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.headerContainer}>
-              <Header title="QR Attendance" />
+              <Header title="ZIB QR Attendance" />
             </View>
 
             <Text style={styles.title}>Create Account</Text>

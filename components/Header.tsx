@@ -1,5 +1,4 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View } from 'react-native';
 
 import { COLORS } from '@/constants/colors';
 
@@ -8,9 +7,12 @@ type Props = { title: string };
 export default function Header({ title }: Props) {
   return (
     <View style={styles.container}>
-      <View style={styles.logoCircle}>
-        <MaterialIcons name="qr-code-scanner" size={36} color={COLORS.primary} />
-      </View>
+      <Image
+        source={require('@/assets/images/zib-logo.png')}
+        style={styles.logo}
+        resizeMode="contain"
+        accessibilityLabel="ZIB logo"
+      />
       <Text style={styles.title}>{title}</Text>
     </View>
   );
@@ -21,14 +23,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 24,
   },
-  logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: COLORS.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
+  // The logo is a wide wordmark (about 1.9:1), so it gets a wide box.
+  logo: {
+    width: 150,
+    height: 80,
+    marginBottom: 8,
   },
   title: {
     fontSize: 24,

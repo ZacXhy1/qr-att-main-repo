@@ -19,6 +19,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
+import KeyboardAvoid from '@/components/KeyboardAvoid';
 import { useAuth } from '@/lib/auth';
 import {
   createEvent,
@@ -395,6 +396,7 @@ export default function TeacherScreen() {
   }
 
   return (
+    <KeyboardAvoid>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -690,6 +692,7 @@ export default function TeacherScreen() {
         </View>
       </Modal>
     </ScrollView>
+    </KeyboardAvoid>
   );
 }
 
