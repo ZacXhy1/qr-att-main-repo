@@ -380,7 +380,12 @@ export default function AdminScreen() {
       </View>
 
       {/* Filters */}
-      <View style={styles.chipRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.chipRow}
+        keyboardShouldPersistTaps="handled"
+      >
         {chips.map((c) => (
           <Pressable
             key={c.value}
@@ -392,7 +397,7 @@ export default function AdminScreen() {
             </Text>
           </Pressable>
         ))}
-      </View>
+      </ScrollView>
 
       <Text style={styles.countText}>
         {total === 0 ? '0 results' : `Showing ${shown} of ${total}`}
@@ -589,7 +594,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   searchInput: { flex: 1, paddingVertical: 10, fontSize: 15, color: COLORS.textPrimary },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  chipRow: { flexDirection: 'row', gap: 8, paddingTop: 10, paddingRight: 8 },
   chip: {
     borderRadius: 999,
     borderWidth: 1,
