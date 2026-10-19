@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from '@react-native-community/datetimepicker';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   Alert,
@@ -22,9 +22,11 @@ import { useAuth } from '@/lib/auth';
 import {
   createEvent,
   getEventsByTeacher,
+  getEventState,
   setEventStatus,
   updateEvent,
   type CloudEvent,
+  type EventState,
 } from '@/lib/events';
 import { buildQRPayload } from '@/lib/qr';
 import { useRealtimeRefresh } from '@/lib/realtime';
@@ -62,6 +64,13 @@ type EditTarget = 'start' | 'end';
 export default function TeacherScreen() {
   const { user } = useAuth();
   const { role, loading: roleLoading } = useRole();
+
+  // Re-render every 30 s so Upcoming -> Open -> Ended badges stay current.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const [title, setTitle] = useState('');
   const [eventId, setEventId] = useState('');
@@ -392,7 +401,18 @@ export default function TeacherScreen() {
           <View style={styles.qrBox}>
             <QRCode value={payload} size={200} />
           </View>
-          <Text style={styles.payloadText}>{payload}</Text>
+          {(() => {
+            try {
+              const p = JSON.parse(payload);
+              return (
+                <Text style={styles.qrCaption}>
+                  {p.title} · {p.event}
+                </Text>
+              );
+            } catch {
+              return null;
+            }
+          })()}
         </View>
       )}
 
@@ -420,11 +440,11 @@ export default function TeacherScreen() {
               <View
                 style={[
                   styles.statusBadge,
-                  event.status === 'closed' ? styles.statusClosed : styles.statusOpen,
+                  { backgroundColor: STATE_COLOR[getEventState(event, now)] },
                 ]}
               >
                 <Text style={styles.statusBadgeText}>
-                  {event.status === 'closed' ? 'Closed' : 'Open'}
+                  {STATE_LABEL[getEventState(event, now)]}
                 </Text>
               </View>
             </View>
@@ -479,7 +499,28 @@ function PickerField({ value, icon, onPress }: PickerFieldProps) {
   );
 }
 
+// Badge shown on each event: based on its status AND its start/end time.
+const STATE_LABEL: Record<EventState, string> = {
+  ongoing: 'Open now',
+  upcoming: 'Upcoming',
+  ended: 'Ended',
+  closed: 'Closed',
+};
+
+const STATE_COLOR: Record<EventState, string> = {
+  ongoing: '#2E7D5B',
+  upcoming: COLORS.primary,
+  ended: COLORS.textSecondary,
+  closed: COLORS.danger,
+};
+
 const styles = StyleSheet.create({
+  qrCaption: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.textPrimary,
+    textAlign: 'center',
+  },
   container: {
     flex: 1,
     backgroundColor: COLORS.background,

@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Pressable, RefreshControl, StyleSheet, Text, View } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
@@ -41,6 +41,13 @@ export default function EventsScreen() {
   const [events, setEvents] = useState<CloudEvent[]>([]);
   const [attended, setAttended] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>('available');
+
+  // Re-evaluate every 30 s so events move from Upcoming -> Open -> Ended on their own.
+  const [tick, setTick] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +80,7 @@ export default function EventsScreen() {
   };
 
   const visible = useMemo(() => {
-    const now = Date.now();
+    const now = tick;
     const withState = events.map((event) => ({ event, state: getEventState(event, now) }));
 
     if (filter === 'available') {
@@ -96,7 +103,7 @@ export default function EventsScreen() {
         const bt = b.event.start_time ? new Date(b.event.start_time).getTime() : 0;
         return bt - at;
       });
-  }, [events, filter]);
+  }, [events, filter, tick]);
 
   return (
     <View style={styles.container}>
