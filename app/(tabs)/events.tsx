@@ -13,6 +13,7 @@ import {
   type CloudEvent,
   type EventState,
 } from '@/lib/events';
+import { formatDateTime12 } from '@/lib/format';
 
 type Filter = 'available' | 'past';
 
@@ -32,7 +33,7 @@ const STATE_COLOR: Record<EventState, string> = {
 
 function formatDateTime(iso: string | null) {
   if (!iso) return null;
-  return new Date(iso).toLocaleString();
+  return formatDateTime12(iso);
 }
 
 export default function EventsScreen() {

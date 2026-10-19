@@ -28,6 +28,7 @@ import {
   type CloudEvent,
   type EventState,
 } from '@/lib/events';
+import { formatDateOnly, formatDateTime12, formatTime12 } from '@/lib/format';
 import { buildQRPayload } from '@/lib/qr';
 import { useRealtimeRefresh } from '@/lib/realtime';
 import { useRole } from '@/lib/role';
@@ -41,16 +42,12 @@ function toLocalISO(date: Date) {
 }
 
 function formatDateTime(date: Date) {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const month = date.toLocaleString('en-US', { month: 'short' });
-  return `${month} ${pad(date.getDate())}, ${date.getFullYear()} at ${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}`;
+  return `${formatDateOnly(date)} at ${formatTime12(date)}`;
 }
 
 function formatShort(iso: string | null) {
   if (!iso) return null;
-  return new Date(iso).toLocaleString();
+  return formatDateTime12(iso);
 }
 
 const QUICK_END_OPTIONS = [
@@ -388,6 +385,7 @@ export default function TeacherScreen() {
             value={editTarget === 'start' ? startDate : endDate}
             mode={isAndroid ? editingPart : 'datetime'}
             display={isAndroid ? 'default' : 'spinner'}
+            is24Hour={false}
             onChange={onPickerChange}
           />
         </View>

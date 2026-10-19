@@ -17,7 +17,7 @@ export const ALL_TABS: TabName[] = ['index', 'events', 'scan', 'history', 'teach
 export const TAB_ACCESS: Record<Role, TabName[]> = {
   student: ['index', 'events', 'scan', 'history', 'profile'],
   teacher: ['index', 'history', 'teacher', 'profile'],
-  admin: ['index', 'teacher', 'admin', 'profile'],
+  admin: ['index', 'history', 'teacher', 'admin', 'profile'],
 };
 
 export function canAccessTab(role: Role | null, tab: TabName): boolean {

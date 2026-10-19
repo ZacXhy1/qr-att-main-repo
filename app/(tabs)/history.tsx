@@ -1,11 +1,13 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { COLORS } from '@/constants/colors';
 import { getTeacherEventAttendance, type TeacherEventAttendance } from '@/lib/attendance';
 import { useAuth } from '@/lib/auth';
 import { getAttendanceHistory, type AttendanceRecord } from '@/lib/attendance';
+import { getEventState, type EventState } from '@/lib/events';
+import { formatDateOnly, formatDateTime12, formatTime12 } from '@/lib/format';
 import { getProfile, type Role } from '@/lib/profiles';
 import { useRealtimeRefresh } from '@/lib/realtime';
 
@@ -18,6 +20,13 @@ export default function HistoryScreen() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
 
+  // Re-render every 30 s so Upcoming / Open now / Ended badges stay current.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(id);
+  }, []);
+
   const load = useCallback(async () => {
     if (!user) {
       setLoading(false);
@@ -28,7 +37,7 @@ export default function HistoryScreen() {
     const currentRole: Role = profile?.role ?? 'student';
     setRole(currentRole);
 
-    if (currentRole === 'teacher') {
+    if (currentRole === 'teacher' || currentRole === 'admin') {
       const events = await getTeacherEventAttendance(user.id);
       setTeacherEvents(events);
       setStudentRecords([]);
@@ -62,21 +71,8 @@ export default function HistoryScreen() {
     );
   }
 
-  /* -------------------------- Admin view -------------------------- */
-  if (role === 'admin') {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.title}>Attendance History</Text>
-        <Text style={styles.subtitle}>
-          Admin accounts don't scan attendance themselves. Use the Admin tab to view
-          attendance across every event.
-        </Text>
-      </View>
-    );
-  }
-
-  /* -------------------------- Teacher view -------------------------- */
-  if (role === 'teacher') {
+  /* ---------------- Teacher / Admin view (their own events) ---------------- */
+  if (role === 'teacher' || role === 'admin') {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Event Attendance</Text>
@@ -101,11 +97,11 @@ export default function HistoryScreen() {
                         <View
                           style={[
                             styles.statusBadge,
-                            item.status === 'closed' ? styles.statusClosed : styles.statusOpen,
+                            { backgroundColor: STATE_COLOR[getEventState(toCloud(item), now)] },
                           ]}
                         >
                           <Text style={styles.statusBadgeText}>
-                            {item.status === 'closed' ? 'Closed' : 'Open'}
+                            {STATE_LABEL[getEventState(toCloud(item), now)]}
                           </Text>
                         </View>
                       </View>
@@ -114,7 +110,7 @@ export default function HistoryScreen() {
                         {item.presentCount} present · {item.lateCount} late
                       </Text>
                       {item.startTime && (
-                        <Text style={styles.eventMeta}>{formatDate(item.startTime)}</Text>
+                        <Text style={styles.eventMeta}>{formatDateTime12(item.startTime)}</Text>
                       )}
                     </View>
                     <View style={styles.countBadge}>
@@ -126,24 +122,39 @@ export default function HistoryScreen() {
                     (item.attendees.length === 0 ? (
                       <Text style={styles.emptyAttendees}>No one has scanned yet.</Text>
                     ) : (
-                      item.attendees.map((a) => (
-                        <View key={a.studentId + a.scannedAt} style={styles.attendeeRow}>
-                          <Text style={styles.attendeeName}>
-                            {a.studentName ?? shortId(a.studentId)}
-                          </Text>
-                          <View
-                            style={[
-                              styles.statusPill,
-                              a.status === 'late' ? styles.pillLate : styles.pillPresent,
-                            ]}
-                          >
-                            <Text style={styles.statusPillText}>
-                              {a.status === 'late' ? 'Late' : 'Present'}
-                            </Text>
-                          </View>
-                          <Text style={styles.attendeeTime}>{formatDate(a.scannedAt)}</Text>
+                      <View style={styles.table}>
+                        <View style={styles.tableHeader}>
+                          <Text style={[styles.th, styles.colName]}>Student</Text>
+                          <Text style={[styles.th, styles.colTime]}>Time</Text>
+                          <Text style={[styles.th, styles.colStatus]}>Status</Text>
                         </View>
-                      ))
+                        {item.attendees.map((a, i) => (
+                          <View
+                            key={a.studentId + a.scannedAt}
+                            style={[styles.tableRow, i % 2 === 1 && styles.tableRowAlt]}
+                          >
+                            <Text style={[styles.tdName, styles.colName]} numberOfLines={2}>
+                              {a.studentName ?? shortId(a.studentId)}
+                            </Text>
+                            <View style={styles.colTime}>
+                              <Text style={styles.tdTime}>{formatTime12(a.scannedAt)}</Text>
+                              <Text style={styles.tdDate}>{formatDateOnly(a.scannedAt)}</Text>
+                            </View>
+                            <View style={styles.colStatus}>
+                              <View
+                                style={[
+                                  styles.statusPill,
+                                  a.status === 'late' ? styles.pillLate : styles.pillPresent,
+                                ]}
+                              >
+                                <Text style={styles.statusPillText}>
+                                  {a.status === 'late' ? 'Late' : 'Present'}
+                                </Text>
+                              </View>
+                            </View>
+                          </View>
+                        ))}
+                      </View>
                     ))}
                 </View>
               );
@@ -184,7 +195,7 @@ export default function HistoryScreen() {
                 </View>
               </View>
               <Text style={styles.eventMeta}>{item.eventId}</Text>
-              <Text style={styles.eventMeta}>{formatDate(item.scannedAt)}</Text>
+              <Text style={styles.eventMeta}>{formatDateTime12(item.scannedAt)}</Text>
             </View>
           )}
         />
@@ -193,8 +204,23 @@ export default function HistoryScreen() {
   );
 }
 
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleString();
+const STATE_LABEL: Record<EventState, string> = {
+  ongoing: 'Open now',
+  upcoming: 'Upcoming',
+  ended: 'Ended',
+  closed: 'Closed',
+};
+
+const STATE_COLOR: Record<EventState, string> = {
+  ongoing: '#2E7D5B',
+  upcoming: COLORS.primary,
+  ended: COLORS.textSecondary,
+  closed: COLORS.danger,
+};
+
+// getEventState only needs the status and the start/end times.
+function toCloud(e: TeacherEventAttendance) {
+  return { status: e.status, start_time: e.startTime, end_time: e.endTime } as any;
 }
 
 // Last 8 characters of a uuid - names come in a later phase.
@@ -208,6 +234,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
     marginHorizontal: 6,
+    alignSelf: 'flex-start',
   },
   pillPresent: { backgroundColor: '#2E7D5B' },
   pillLate: { backgroundColor: '#C77700' },
@@ -252,11 +279,13 @@ const styles = StyleSheet.create({
   cardHeaderText: { flex: 1, paddingRight: 12 },
   titleRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
     marginBottom: 4,
   },
   eventTitle: {
+    flexShrink: 1,
     fontSize: 16,
     fontWeight: '600',
     color: COLORS.textPrimary,
@@ -312,4 +341,34 @@ const styles = StyleSheet.create({
     color: COLORS.textPrimary,
   },
   attendeeTime: { fontSize: 12, color: COLORS.textSecondary },
+  table: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  th: { fontSize: 11, fontWeight: '700', color: COLORS.textSecondary, textTransform: 'uppercase' },
+  tableRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.border,
+  },
+  tableRowAlt: { backgroundColor: '#00000008' },
+  colName: { flex: 1, paddingRight: 8 },
+  colTime: { width: 96, paddingRight: 8 },
+  colStatus: { width: 72, alignItems: 'flex-start' },
+  tdName: { fontSize: 14, fontWeight: '500', color: COLORS.textPrimary },
+  tdTime: { fontSize: 13, fontWeight: '600', color: COLORS.textPrimary },
+  tdDate: { fontSize: 11, color: COLORS.textSecondary, marginTop: 1 },
 });

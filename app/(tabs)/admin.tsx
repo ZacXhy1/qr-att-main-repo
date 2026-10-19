@@ -21,6 +21,7 @@ import {
 import { useRealtimeRefresh } from '@/lib/realtime';
 import { useRole } from '@/lib/role';
 import type { Role } from '@/lib/profiles';
+import { formatDateTime12 } from '@/lib/format';
 
 const ROLES: Role[] = ['student', 'teacher', 'admin'];
 
@@ -248,7 +249,7 @@ export default function AdminScreen() {
                     {student?.full_name || student?.email || 'Unknown student'}
                   </Text>
                   <Text style={styles.userMeta}>{event?.title ?? 'Unknown event'}</Text>
-                  <Text style={styles.userMeta}>{new Date(r.scannedAt).toLocaleString()}</Text>
+                  <Text style={styles.userMeta}>{formatDateTime12(r.scannedAt)}</Text>
                   <Pressable
                     style={[
                       styles.statusPill,

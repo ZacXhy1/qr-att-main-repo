@@ -137,10 +137,6 @@ const handleImportImage = async () => {
          </Text>
           )}
 
-        {scanned && lastData && (
-          <Text style={styles.scanData}>{lastData}</Text>
-        )}
-
 
         {scanned ? (
           <AppButton
