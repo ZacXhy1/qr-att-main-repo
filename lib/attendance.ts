@@ -111,14 +111,19 @@ export type TeacherEventSummary = {
   attendeeCount: number;
 };
 
+// Teachers see the events they created. Admins pass allEvents = true to see
+// every event (the database allows this through the admin RLS policies).
 export async function getTeacherEventAttendance(
-  teacherId: string
+  userId: string,
+  allEvents: boolean = false
 ): Promise<TeacherEventAttendance[]> {
-  const { data: events, error: eventError } = await supabase
+  let query = supabase
     .from('events')
     .select('id, event_code, title, start_time, end_time, venue, status')
-    .eq('created_by', teacherId)
     .order('created_at', { ascending: false });
+  if (!allEvents) query = query.eq('created_by', userId);
+
+  const { data: events, error: eventError } = await query;
 
   if (eventError) throw new Error(eventError.message);
   if (!events) return [];

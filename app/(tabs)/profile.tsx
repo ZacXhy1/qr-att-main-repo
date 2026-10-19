@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useFocusEffect } from 'expo-router';
 
 import AppButton from '@/components/AppButton';
@@ -96,6 +97,11 @@ export default function ProfileScreen() {
     setEditingDetails(false);
   };
 
+  const cancelEditName = () => {
+    setDraftName(profile?.full_name ?? '');
+    setEditing(false);
+  };
+
   const handleSignOut = async () => {
     setLoading(true);
     try {
@@ -107,75 +113,131 @@ export default function ProfileScreen() {
     }
   };
 
-  const roleLabel =
-    profile?.role === 'admin' ? 'Admin' : profile?.role === 'teacher' ? 'Teacher' : 'Student';
-  const roleBadgeStyle =
-    profile?.role === 'admin'
-      ? styles.roleBadgeAdmin
-      : profile?.role === 'teacher'
-      ? undefined
-      : styles.roleBadgeStudent;
+  const role = profile?.role ?? 'student';
+  const roleLabel = role === 'admin' ? 'Admin' : role === 'teacher' ? 'Teacher' : 'Student';
+  const roleStyle =
+    role === 'admin' ? styles.roleAdmin : role === 'teacher' ? styles.roleTeacher : styles.roleStudent;
+  const roleTextStyle =
+    role === 'admin'
+      ? styles.roleTextAdmin
+      : role === 'teacher'
+      ? styles.roleTextTeacher
+      : styles.roleTextStudent;
+
+  const displayName = profile?.full_name?.trim() || 'Add your name';
+  const initial = (profile?.full_name?.trim() || user?.email || '?').charAt(0).toUpperCase();
+  const detailsEmpty = !profile?.student_number && !profile?.section && !profile?.program;
+
+  const detailRows = [
+    { icon: 'card-outline', label: 'Student Number', value: profile?.student_number },
+    { icon: 'people-outline', label: 'Section', value: profile?.section },
+    { icon: 'school-outline', label: 'Program', value: profile?.program },
+  ] as const;
 
   return (
     <ScrollView
       style={styles.container}
-      contentContainerStyle={{ paddingBottom: 24 }}
+      contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
     >
-      <Text style={styles.title}>My Profile</Text>
-
       {user && (
-        <View style={styles.infoCard}>
-          <View style={[styles.roleBadge, roleBadgeStyle]}>
-            <Text style={styles.roleBadgeText}>{roleLabel}</Text>
+        <>
+          {/* ------------------------- Header ------------------------- */}
+          <View style={styles.hero}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initial}</Text>
+            </View>
+            <Text style={styles.heroName} numberOfLines={1}>
+              {displayName}
+            </Text>
+            <Text style={styles.heroEmail} numberOfLines={1}>
+              {user.email}
+            </Text>
+            <View style={[styles.roleBadge, roleStyle]}>
+              <Text style={[styles.roleBadgeText, roleTextStyle]}>{roleLabel}</Text>
+            </View>
           </View>
 
-          <Text style={styles.label}>Full Name</Text>
-          {editing ? (
-            <View style={styles.nameEditRow}>
-              <TextInput
-                style={styles.nameInput}
-                value={draftName}
-                onChangeText={setDraftName}
-                placeholder="Your full name"
-                placeholderTextColor={COLORS.textSecondary}
-                autoCapitalize="words"
-                editable={!saving}
-              />
-              <Pressable
-                style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-                onPress={handleSaveName}
-                disabled={saving}
-              >
-                <Text style={styles.saveButtonText}>{saving ? '...' : 'Save'}</Text>
-              </Pressable>
+          {/* ------------------------- Account ------------------------- */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Account</Text>
+
+            <View style={styles.row}>
+              <Ionicons name="person-outline" size={20} color={COLORS.primary} style={styles.rowIcon} />
+              <View style={styles.rowBody}>
+                <Text style={styles.label}>Full Name</Text>
+                {editing ? (
+                  <TextInput
+                    style={styles.input}
+                    value={draftName}
+                    onChangeText={setDraftName}
+                    placeholder="Your full name"
+                    placeholderTextColor={COLORS.textSecondary}
+                    autoCapitalize="words"
+                    editable={!saving}
+                    autoFocus
+                  />
+                ) : (
+                  <Text style={profile?.full_name ? styles.value : styles.valueEmpty}>
+                    {profile?.full_name || 'Not set'}
+                  </Text>
+                )}
+              </View>
+              {!editing && (
+                <Pressable onPress={() => setEditing(true)} hitSlop={8} style={styles.editButton}>
+                  <Ionicons name="create-outline" size={16} color={COLORS.primary} />
+                  <Text style={styles.editText}>Edit</Text>
+                </Pressable>
+              )}
             </View>
-          ) : (
-            <Pressable onPress={() => setEditing(true)} style={styles.nameRow}>
-              <Text style={styles.value}>{profile?.full_name || 'Tap to add your name'}</Text>
-              <Text style={styles.editHint}>Edit</Text>
-            </Pressable>
-          )}
 
-          <Text style={styles.label}>Email</Text>
-          <Text style={styles.value}>{user.email}</Text>
+            {editing && (
+              <View style={styles.actionRow}>
+                <Pressable
+                  style={[styles.saveButton, saving && styles.disabled]}
+                  onPress={handleSaveName}
+                  disabled={saving}
+                >
+                  <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
+                </Pressable>
+                <Pressable style={styles.cancelButton} onPress={cancelEditName} disabled={saving}>
+                  <Text style={styles.cancelText}>Cancel</Text>
+                </Pressable>
+              </View>
+            )}
 
+            <View style={styles.divider} />
+
+            <View style={styles.row}>
+              <Ionicons name="mail-outline" size={20} color={COLORS.primary} style={styles.rowIcon} />
+              <View style={styles.rowBody}>
+                <Text style={styles.label}>Email</Text>
+                <Text style={styles.value} numberOfLines={1}>
+                  {user.email}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* --------------------- Student details --------------------- */}
           {profile?.role === 'student' && (
-            <>
-              <View style={styles.nameRow}>
-                <Text style={[styles.label, { marginBottom: 0 }]}>Student Details</Text>
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>Student Details</Text>
                 {!editingDetails && (
-                  <Pressable onPress={startEditingDetails}>
-                    <Text style={styles.editHint}>Edit</Text>
+                  <Pressable onPress={startEditingDetails} hitSlop={8} style={styles.editButton}>
+                    <Ionicons name="create-outline" size={16} color={COLORS.primary} />
+                    <Text style={styles.editText}>Edit</Text>
                   </Pressable>
                 )}
               </View>
 
               {editingDetails ? (
                 <>
-                  <Text style={styles.label}>Student Number</Text>
+                  <Text style={styles.fieldLabel}>Student Number</Text>
                   <TextInput
-                    style={styles.nameInput}
+                    style={styles.input}
                     value={draftNumber}
                     onChangeText={setDraftNumber}
                     placeholder="e.g. 2026-00123"
@@ -183,53 +245,77 @@ export default function ProfileScreen() {
                     autoCapitalize="characters"
                     editable={!savingDetails}
                   />
-                  <Text style={styles.label}>Section</Text>
+
+                  <Text style={styles.fieldLabel}>Section</Text>
                   <TextInput
-                    style={styles.nameInput}
+                    style={styles.input}
                     value={draftSection}
                     onChangeText={setDraftSection}
                     placeholder="e.g. BSIT 3-A"
                     placeholderTextColor={COLORS.textSecondary}
                     editable={!savingDetails}
                   />
-                  <Text style={styles.label}>Program</Text>
+
+                  <Text style={styles.fieldLabel}>Program</Text>
                   <TextInput
-                    style={styles.nameInput}
+                    style={styles.input}
                     value={draftProgram}
                     onChangeText={setDraftProgram}
                     placeholder="e.g. BS Information Technology"
                     placeholderTextColor={COLORS.textSecondary}
                     editable={!savingDetails}
                   />
-                  <View style={[styles.nameEditRow, { marginTop: 12 }]}>
+
+                  <View style={styles.actionRow}>
                     <Pressable
-                      style={[styles.saveButton, savingDetails && styles.saveButtonDisabled]}
+                      style={[styles.saveButton, savingDetails && styles.disabled]}
                       onPress={handleSaveDetails}
                       disabled={savingDetails}
                     >
-                      <Text style={styles.saveButtonText}>{savingDetails ? '...' : 'Save'}</Text>
+                      <Text style={styles.saveButtonText}>
+                        {savingDetails ? 'Saving...' : 'Save'}
+                      </Text>
                     </Pressable>
-                    <Pressable onPress={() => setEditingDetails(false)} disabled={savingDetails}>
-                      <Text style={styles.editHint}>Cancel</Text>
+                    <Pressable
+                      style={styles.cancelButton}
+                      onPress={() => setEditingDetails(false)}
+                      disabled={savingDetails}
+                    >
+                      <Text style={styles.cancelText}>Cancel</Text>
                     </Pressable>
                   </View>
                 </>
               ) : (
                 <>
-                  <Text style={styles.label}>Student Number</Text>
-                  <Text style={styles.value}>{profile.student_number || 'Not set'}</Text>
-                  <Text style={styles.label}>Section</Text>
-                  <Text style={styles.value}>{profile.section || 'Not set'}</Text>
-                  <Text style={styles.label}>Program</Text>
-                  <Text style={styles.value}>{profile.program || 'Not set'}</Text>
+                  {detailsEmpty && (
+                    <Text style={styles.hint}>
+                      Add your student number, section and program so your teachers can identify you.
+                    </Text>
+                  )}
+                  {detailRows.map((r, i) => (
+                    <View key={r.label}>
+                      {i > 0 && <View style={styles.divider} />}
+                      <View style={styles.row}>
+                        <Ionicons name={r.icon} size={20} color={COLORS.primary} style={styles.rowIcon} />
+                        <View style={styles.rowBody}>
+                          <Text style={styles.label}>{r.label}</Text>
+                          <Text style={r.value ? styles.value : styles.valueEmpty}>
+                            {r.value || 'Not set'}
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
                 </>
               )}
-            </>
+            </View>
           )}
 
-          <Text style={styles.label}>User ID</Text>
-          <Text style={styles.valueSmall}>{user.id}</Text>
-        </View>
+          {/* ------------------------ User ID ------------------------ */}
+          <Text style={styles.idText} selectable>
+            User ID: {user.id}
+          </Text>
+        </>
       )}
 
       <AppButton
@@ -246,73 +332,93 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
-    paddingHorizontal: 24,
-    paddingTop: 24,
   },
-  title: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: COLORS.textPrimary,
-    marginBottom: 16,
+  content: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
   },
-  infoCard: {
-    backgroundColor: COLORS.card,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 24,
-  },
-  roleBadge: {
-    alignSelf: 'flex-start',
+
+  // Header
+  hero: { alignItems: 'center', marginBottom: 20 },
+  avatar: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: COLORS.border,
+  },
+  avatarText: { color: COLORS.textOnPrimary, fontSize: 36, fontWeight: '700' },
+  heroName: { fontSize: 22, fontWeight: '700', color: COLORS.textPrimary, maxWidth: '90%' },
+  heroEmail: { fontSize: 14, color: COLORS.textSecondary, marginTop: 2, maxWidth: '90%' },
+  roleBadge: {
     borderRadius: 999,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 4,
-    marginBottom: 4,
+    marginTop: 10,
   },
-  roleBadgeStudent: {
-    backgroundColor: COLORS.textSecondary,
+  roleStudent: { backgroundColor: '#EBDAC6' },
+  roleTeacher: { backgroundColor: '#F1DADA' },
+  roleAdmin: { backgroundColor: COLORS.textPrimary },
+  roleBadgeText: { fontSize: 12, fontWeight: '700' },
+  roleTextStudent: { color: COLORS.textSecondary },
+  roleTextTeacher: { color: COLORS.primary },
+  roleTextAdmin: { color: COLORS.textOnPrimary },
+
+  // Cards
+  card: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
-  roleBadgeAdmin: {
-    backgroundColor: '#5B3A9E',
-  },
-  roleBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: COLORS.textSecondary,
-    marginBottom: 4,
-    marginTop: 12,
-  },
-  value: {
-    fontSize: 15,
-    color: COLORS.textPrimary,
-    fontWeight: '500',
-  },
-  valueSmall: {
-    fontSize: 11,
-    color: COLORS.textSecondary,
-  },
-  nameRow: {
+  cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  editHint: {
+  cardTitle: {
     fontSize: 13,
+    fontWeight: '700',
+    color: COLORS.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+
+  // Rows
+  row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10 },
+  rowIcon: { width: 28 },
+  rowBody: { flex: 1, paddingRight: 8 },
+  label: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 2 },
+  value: { fontSize: 16, fontWeight: '600', color: COLORS.textPrimary },
+  valueEmpty: { fontSize: 16, fontStyle: 'italic', color: COLORS.surface },
+  divider: { height: 1, backgroundColor: COLORS.border, marginLeft: 28, opacity: 0.6 },
+  hint: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: COLORS.textSecondary,
+    backgroundColor: COLORS.background,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 6,
+  },
+
+  // Editing
+  fieldLabel: {
+    fontSize: 12,
     fontWeight: '600',
-    color: COLORS.primary,
+    color: COLORS.textSecondary,
+    marginTop: 12,
+    marginBottom: 6,
   },
-  nameEditRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  nameInput: {
-    flex: 1,
+  input: {
     backgroundColor: COLORS.background,
     borderRadius: 12,
     borderWidth: 1,
@@ -322,12 +428,31 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: COLORS.textPrimary,
   },
+  editButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  editText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 14 },
   saveButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 22,
     paddingVertical: 11,
   },
-  saveButtonDisabled: { opacity: 0.6 },
-  saveButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 15 },
+  saveButtonText: { color: COLORS.textOnPrimary, fontWeight: '700', fontSize: 15 },
+  cancelButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+  },
+  cancelText: { color: COLORS.textPrimary, fontWeight: '600', fontSize: 15 },
+  disabled: { opacity: 0.6 },
+
+  idText: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    opacity: 0.7,
+    marginBottom: 20,
+  },
 });

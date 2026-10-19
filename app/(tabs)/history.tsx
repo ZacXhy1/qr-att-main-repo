@@ -42,7 +42,8 @@ export default function HistoryScreen() {
       setRole(currentRole);
 
       if (currentRole === 'teacher' || currentRole === 'admin') {
-        const events = await getTeacherEventAttendance(user.id);
+        // Teachers: their own events. Admins: every event.
+        const events = await getTeacherEventAttendance(user.id, currentRole === 'admin');
         setTeacherEvents(events);
         setStudentRecords([]);
       } else {
@@ -95,15 +96,20 @@ export default function HistoryScreen() {
     );
   }
 
-  /* ---------------- Teacher / Admin view (their own events) ---------------- */
+  /* ---------------- Teacher view (own events) / Admin view (all events) ---------------- */
   if (role === 'teacher' || role === 'admin') {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Event Attendance</Text>
+        {role === 'admin' && (
+          <Text style={styles.subtitle}>Showing every event on campus.</Text>
+        )}
 
         {teacherEvents.length === 0 ? (
           <Text style={styles.subtitle}>
-            You haven't created any events yet. Use the Teacher tab to create one.
+            {role === 'admin'
+              ? 'No events have been created yet.'
+              : "You haven't created any events yet. Use the Teacher tab to create one."}
           </Text>
         ) : (
           <FlatList
