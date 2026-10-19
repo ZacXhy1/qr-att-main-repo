@@ -1,62 +1,168 @@
-   ## Download the APK
+# ZIB QR Attendance
 
-   The APK attached to my submission is an earlier build that crashes on launch (missing Supabase env vars).
-   The fixed build is here: [Download / build page](https://expo.dev/accounts/zacxhy1/projects/QR-ATT/builds/cbf1557d-c494-4667-b962-3d470679507e)
+A mobile app for managing school event attendance with QR codes. Teachers and
+admins create events and show a QR code; students scan it to record their
+attendance. Built for the Event-Driven Programming final project (QR-ATT).
 
-# SETUP COMMANDS — QR Attendance App
+**Stack:** Expo (React Native, expo-router, TypeScript) · Supabase (Auth,
+PostgreSQL, Row Level Security, Realtime) · expo-camera
 
-> **Target:** First-year students | **Expo SDK:** 54 | **Expo Go:** 54.0.8
-
----
-
-## PREREQUISITES
-
-| Tool | Download | Verify |
-|---|---|---|
-| Node.js (LTS) | https://nodejs.org/en | `node --version` |
-| VS Code | https://code.visualstudio.com | (open it) |
-| Expo Go 54.0.8 | Play Store → "Expo Go" | (version in app settings) |
+> **APK / build link:** _paste your latest EAS build link here_
 
 ---
 
-## STEP 1 — Create the App
+## Features
 
-```powershell
-cd D:\QR-ATT
-npx create-expo-app@latest qr-att
-
-# When prompted, select "SDK 54"
-# Wait for npm install (~2 min)
-```
-
----
-
-## STEP 2 — Install Matching Versions
-
-The default install may need these fixed versions that match Expo Go 54.0.8:
-
-```powershell
-npm install expo@~54.0.35 react@19.1.0 react-native@0.81.5 expo-router@~6.0.24 @expo/vector-icons@^15.0.3 expo-linking@~8.0.12 expo-constants@~18.0.13 expo-font@~14.0.12 expo-status-bar@~3.0.9 expo-splash-screen@~31.0.13 react-native-screens@~4.16.0 react-native-safe-area-context@~5.6.0 react-native-gesture-handler@~2.28.0 react-native-reanimated@~4.1.1 react-dom@19.1.0 react-native-web@~0.21.0 @types/react@~19.1.0 typescript@~5.9.2 --legacy-peer-deps
-```
-
----
-
-## STEP 3 — Start
-
-```powershell
-npx expo start
-```
-
-Scan QR code with Expo Go. Or press `W` for web.
-
----
-
-## TROUBLESHOOTING
-
-| Problem | Solution |
+| Role | What they can do |
 |---|---|
-| npm install fails | Use `npm install --legacy-peer-deps` |
-| App crashes in Expo Go | Make sure all versions match STEP 2 exactly |
-| QR won't scan | Phone + computer on same WiFi |
-| White screen | Wait 10s, or shake → Reload |
-| TypeScript errors | Run `npx tsc --noEmit` |
+| **Student** | Register / log in, edit profile (name, student number, section, program), browse events, scan a QR (camera or gallery), see a confirmation (present or late), view personal attendance history |
+| **Teacher** | Create, edit, close and reopen events, show the event QR, regenerate the QR if it leaks, view attendance per event with present / late counts |
+| **Admin** | Everything a teacher can do on any event, plus manage users and roles, view all attendance, correct a record (present ↔ late) or delete it, delete events, see system stats |
+
+Other behaviour:
+
+- **Late detection.** Each event has a "late after" grace period; the database
+  marks a scan `present` or `late` automatically.
+- **Live updates.** Lists refresh through Supabase Realtime, and event badges
+  (Upcoming / Open now / Ended / Closed) update on a 30-second timer.
+- **Feedback states.** Loading, success, errors, empty lists, invalid QR,
+  duplicate attendance, closed / not started / ended event, and locked screens
+  for the wrong role.
+- **Password reset** with an emailed code, and email confirmation on sign-up.
+
+---
+
+## How attendance works
+
+1. A teacher creates an event. The database generates a random **QR secret**
+   for it (stored in its own table, readable only by the creator and admins).
+2. The app shows a QR containing the event code and that secret.
+3. A student scans it. The app calls one database function,
+   `record_attendance(event_code, token)`.
+4. The function checks, in this order: signed in → student role → event
+   exists and the secret matches → event is open → inside its time window →
+   not a duplicate. It then inserts the record; a trigger stamps the time and
+   sets `present` / `late`.
+5. The student sees a green or red result card.
+
+Students have **no direct INSERT permission** on `attendance`, so the checks
+cannot be skipped by calling the API directly.
+
+---
+
+## Project structure
+
+```
+app/
+  _layout.tsx          Root layout; routes guarded by login state
+  login.tsx  register.tsx  forgot-password.tsx
+  (tabs)/
+    _layout.tsx        Role-based tab bar + redirect guard
+    index.tsx          Home
+    events.tsx         Student: browse events
+    scan.tsx           Student: QR scanner
+    history.tsx        Student history / teacher attendance sheets
+    teacher.tsx        Teacher & admin: create / manage events, show QR
+    admin.tsx          Admin: users, events, attendance, stats
+    profile.tsx        Profile, sign out
+components/            Header, AppButton, PasswordInput, KeyboardAvoid
+constants/colors.ts    Color palette
+lib/
+  supabase.ts          Supabase client (session in SecureStore)
+  auth.ts              signUp, signIn, signOut, password reset, session state
+  role.ts              Role lookup + which tabs each role can open
+  events.ts  attendance.ts  admin.ts  profiles.ts   Data access
+  qr.ts                Build / parse the QR payload
+  realtime.ts          useRealtimeRefresh (Supabase Realtime, debounced)
+  validation.ts  format.ts
+supabase/schema.sql    Full database schema, policies, functions, triggers
+EVENT_FLOW.md          Event → Handler → Action → Result map (for the defense)
+```
+
+---
+
+## Database
+
+Defined in [`supabase/schema.sql`](supabase/schema.sql), which is safe to re-run.
+
+| Table | Purpose | Key relationships |
+|---|---|---|
+| `profiles` | One row per user: name, email, role, student number, section, program | `id` → `auth.users` |
+| `events` | Event name, code, venue, description, start/end, status (open/closed), grace minutes | `created_by` → `auth.users` |
+| `attendance` | One scan: student, event, time, status | `student_id` → `auth.users`, `event_id` → `events`; **unique (student_id, event_id)** |
+| `event_secrets` | The QR secret per event | `event_id` → `events` |
+
+Functions and triggers:
+
+- `handle_new_user` — every sign-up becomes a **student**; the role in sign-up
+  data is ignored.
+- `protect_profile_role` — only admins can change roles; the last admin cannot
+  be demoted; users cannot change their own id or email.
+- `set_attendance_status` — sets scan time and present / late on the server.
+- `create_event_secret` — creates the QR secret for each new event.
+- `record_attendance` / `rotate_event_secret` — the only way to record
+  attendance and to invalidate an old QR.
+- `my_role`, `is_admin`, `is_staff` — helpers used by the policies.
+
+---
+
+## Security
+
+- **Authentication:** Supabase Auth; the session is stored in the device's
+  SecureStore; sign-out clears it.
+- **Authorization:** enforced by Row Level Security on every table, not only
+  in the UI. Hiding a tab is a convenience; the database is the real gate.
+- **Roles can't be self-assigned:** sign-up always creates a student; only an
+  admin can promote someone (trigger-enforced).
+- **Attendance integrity:** server-side function, unique constraint against
+  duplicates, server-set time and status.
+- **QR secret:** unreadable by students; can be regenerated at any time.
+- **Credentials:** only the public anon key is in the app (`.env`, not
+  committed). Never put the service-role key in this project.
+- **Input validation:** email / password rules in `lib/validation.ts`,
+  length and time-order checks in the database.
+
+---
+
+## Setup
+
+**Requirements:** Node.js LTS, a Supabase project, and either an Android
+device with a development build or the Expo Go version that matches the
+project's Expo SDK (see `package.json`).
+
+1. **Install**
+   ```bash
+   npm install
+   ```
+2. **Environment** — copy `.env.example` to `.env` and fill in your project's
+   values (Supabase → Project Settings → API):
+   ```
+   EXPO_PUBLIC_SUPABASE_URL=...
+   EXPO_PUBLIC_SUPABASE_ANON_KEY=...
+   ```
+3. **Database** — open Supabase → SQL Editor, paste all of
+   `supabase/schema.sql`, and run it.
+4. **Auth settings** (Supabase → Authentication):
+   - URL Configuration → **Site URL:** `qr-attendance://login`
+   - URL Configuration → **Redirect URLs:** add `qr-attendance://**`
+   - Email Templates → **Reset Password** must include `{{ .Token }}` so the
+     emailed code works.
+5. **First admin** — register an account in the app, then in the SQL Editor:
+   ```sql
+   update public.profiles set role = 'admin' where email = 'you@example.com';
+   ```
+   After that, promote teachers from the Admin tab.
+6. **Run**
+   ```bash
+   npx expo start -c
+   ```
+   For an installable build: `eas build --profile preview --platform android`.
+
+---
+
+## Known limitations
+
+- The QR is a fixed secret per event, so a photo or screenshot of it can be
+  shared. A teacher can regenerate it; a rotating QR would remove the risk.
+- No offline mode: scanning needs an internet connection.
+- No push notifications or analytics dashboard yet.

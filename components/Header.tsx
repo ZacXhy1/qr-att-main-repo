@@ -23,7 +23,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 24,
   },
-  // The logo is a wide wordmark (about 1.9:1), so it gets a wide box.
+  
   logo: {
     width: 150,
     height: 80,
