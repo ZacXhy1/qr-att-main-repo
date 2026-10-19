@@ -102,6 +102,11 @@ export default function TeacherScreen() {
   // Editing an existing event instead of creating a new one.
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
+  // Which half of the screen is showing: the events list or the create/edit
+  // form. Keeping them as separate segments (instead of one long stacked
+  // scroll) means "My Events" doesn't sit below the whole form every time.
+  const [view, setView] = useState<'list' | 'form'>('list');
+
   // "My Events" - the teacher's own events, so they can edit/close/reopen.
   const [myEvents, setMyEvents] = useState<CloudEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
@@ -205,6 +210,7 @@ export default function TeacherScreen() {
     );
     setPayload(null);
     setMessage(null);
+    setView('form');
   };
 
   // Builds the QR (event code + secret token). The secret comes from the DB.
@@ -394,6 +400,30 @@ export default function TeacherScreen() {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      <View style={styles.segmentRow}>
+        <Pressable
+          style={[styles.segment, view === 'list' && styles.segmentActive]}
+          onPress={() => setView('list')}
+        >
+          <Text style={[styles.segmentText, view === 'list' && styles.segmentTextActive]}>
+            My Events
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.segment, view === 'form' && styles.segmentActive]}
+          onPress={() => {
+            resetForm();
+            setView('form');
+          }}
+        >
+          <Text style={[styles.segmentText, view === 'form' && styles.segmentTextActive]}>
+            + New Event
+          </Text>
+        </Pressable>
+      </View>
+
+      {view === 'form' && (
+        <>
       <Text style={styles.title}>
         {editingEventId ? 'Edit Event' : 'Create Event QR'}
       </Text>
@@ -495,11 +525,17 @@ export default function TeacherScreen() {
         onPress={handleSubmit}
       />
 
-      {editingEventId && (
-        <Pressable style={styles.cancelLink} onPress={resetForm}>
-          <Text style={styles.cancelLinkText}>Cancel editing</Text>
-        </Pressable>
-      )}
+      <Pressable
+        style={styles.cancelLink}
+        onPress={() => {
+          resetForm();
+          setView('list');
+        }}
+      >
+        <Text style={styles.cancelLinkText}>
+          {editingEventId ? 'Cancel editing' : 'Back to My Events'}
+        </Text>
+      </Pressable>
 
       {editTarget && (
         <View style={styles.pickerContainer}>
@@ -536,7 +572,11 @@ export default function TeacherScreen() {
         </View>
       )}
 
-      <View style={styles.sectionDivider} />
+        </>
+      )}
+
+      {view === 'list' && (
+        <>
       <Text style={styles.title}>My Events</Text>
 
       {eventsLoading ? (
@@ -609,6 +649,8 @@ export default function TeacherScreen() {
             </View>
           </View>
         ))
+      )}
+        </>
       )}
 
       <Modal
@@ -686,6 +728,32 @@ const STATE_COLOR: Record<EventState, string> = {
 };
 
 const styles = StyleSheet.create({
+  segmentRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  segment: {
+    flex: 1,
+    backgroundColor: COLORS.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  segmentActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  segmentText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.textSecondary,
+  },
+  segmentTextActive: {
+    color: '#FFFFFF',
+  },
   qrCaption: {
     fontSize: 15,
     fontWeight: '600',

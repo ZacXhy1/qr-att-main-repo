@@ -36,7 +36,7 @@ export default function ScanScreen() {
         <Text style={styles.lockTitle}>Students Only</Text>
         <Text style={styles.lockText}>
           {role === 'teacher'
-            ? 'Teacher accounts create events instead of scanning. Use the Teacher tab to generate a QR code.'
+            ? 'Teacher accounts create events instead of scanning. Use the Events tab to generate a QR code.'
             : 'Admin accounts manage users and events instead of scanning. Use the Admin tab to view attendance.'}
         </Text>
       </View>

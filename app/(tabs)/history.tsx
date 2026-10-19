@@ -174,7 +174,7 @@ export default function HistoryScreen() {
           <Text style={styles.subtitle}>
             {role === 'admin'
               ? 'No events have been created yet.'
-              : "You haven't created any events yet. Use the Teacher tab to create one."}
+              : "You haven't created any events yet. Use the Events tab to create one."}
           </Text>
         ) : (
           <ScrollView
