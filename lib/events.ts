@@ -166,7 +166,10 @@ export type EventState = 'ongoing' | 'upcoming' | 'ended' | 'closed';
 // ended    = its end time has passed
 // upcoming = it has not started yet
 // ongoing  = open and inside its time window (students can scan now)
-export function getEventState(event: CloudEvent, now: number = Date.now()): EventState {
+export function getEventState(
+  event: Pick<CloudEvent, 'status' | 'start_time' | 'end_time'>,
+  now: number = Date.now()
+): EventState {
   if (event.status === 'closed') return 'closed';
   const start = event.start_time ? new Date(event.start_time).getTime() : null;
   const end = event.end_time ? new Date(event.end_time).getTime() : null;
