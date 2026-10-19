@@ -2,7 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { CameraView, scanFromURLAsync, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import { useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
@@ -115,6 +115,15 @@ const handleImportImage = async () => {
   }
 };
 
+  const checking = scanned && !message;
+  const frameColor = !scanned
+    ? '#FFFFFF'
+    : checking
+    ? '#FFFFFF'
+    : success
+    ? '#4CAF50'
+    : '#EF5350';
+
   return (
     <View style={styles.container}>
       <CameraView
@@ -124,39 +133,83 @@ const handleImportImage = async () => {
         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
       />
 
-      <View style={styles.overlay}>
-        <Text style={styles.overlayText}>
-          {scanned ? 'QR Code detected!' : 'Point your camera at a QR code'}
-        </Text>
-
-      {scanned && message && (
-       <Text
-         style={[styles.scanResult, success ? styles.success : styles.error]}
-       >
-         {message}
-         </Text>
-          )}
-
-
-        {scanned ? (
-          <AppButton
-            theme="primary"
-            title="Scan Again"
-            icon="refresh"
-            onPress={handleScanAgain}
-          />
-        ) : (
-          <AppButton
-            title={importing ? 'Reading image...' : 'Upload from Gallery'}
-            icon="image-outline"
-            disabled={importing}
-            onPress={handleImportImage}
-          />
-        )}
+      {/* Dimmed camera with a clear square "window" in the middle */}
+      <View style={styles.mask} pointerEvents="none">
+        <View style={styles.maskDim} />
+        <View style={styles.maskMiddle}>
+          <View style={styles.maskDim} />
+          <View style={styles.frame}>
+            <View style={[styles.corner, styles.cornerTL, { borderColor: frameColor }]} />
+            <View style={[styles.corner, styles.cornerTR, { borderColor: frameColor }]} />
+            <View style={[styles.corner, styles.cornerBL, { borderColor: frameColor }]} />
+            <View style={[styles.corner, styles.cornerBR, { borderColor: frameColor }]} />
+          </View>
+          <View style={styles.maskDim} />
+        </View>
+        <View style={[styles.maskDim, styles.maskBottom]}>
+          <Text style={styles.hint}>
+            {checking
+              ? 'Checking...'
+              : scanned
+              ? ''
+              : 'Align the QR code inside the frame'}
+          </Text>
+        </View>
       </View>
+
+      {scanned ? (
+        // Result: compact card instead of covering the camera
+        <View style={styles.resultCard}>
+          {checking ? (
+            <Text style={styles.resultText}>Checking...</Text>
+          ) : (
+            <>
+              <View style={styles.resultRow}>
+                <Ionicons
+                  name={success ? 'checkmark-circle' : 'close-circle'}
+                  size={28}
+                  color={success ? '#2E7D32' : '#C62828'}
+                />
+                <Text
+                  style={[styles.resultText, success ? styles.success : styles.error]}
+                >
+                  {message}
+                </Text>
+              </View>
+              <AppButton
+                theme="primary"
+                title="Scan Again"
+                icon="refresh"
+                onPress={handleScanAgain}
+              />
+            </>
+          )}
+        </View>
+      ) : (
+        // Small floating pill so the camera stays visible
+        <Pressable
+          style={({ pressed }) => [
+            styles.galleryPill,
+            pressed && styles.galleryPillPressed,
+            importing && styles.galleryPillDisabled,
+          ]}
+          onPress={handleImportImage}
+          disabled={importing}
+        >
+          <Ionicons name="image-outline" size={18} color="#FFFFFF" />
+          <Text style={styles.galleryText}>
+            {importing ? 'Reading image...' : 'Gallery'}
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }
+
+const FRAME = 250;
+const CORNER = 34;
+const THICK = 5;
+const DIM = 'rgba(0,0,0,0.55)';
 
 const styles = StyleSheet.create({
   container: {
@@ -182,27 +235,74 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 16,
   },
-  overlay: {
+
+  /* Scan window */
+  mask: { ...StyleSheet.absoluteFill },
+  maskDim: { flex: 1, backgroundColor: DIM },
+  maskMiddle: { flexDirection: 'row', height: FRAME },
+  maskBottom: { alignItems: 'center', paddingTop: 18 },
+  frame: { width: FRAME, height: FRAME },
+  corner: { position: 'absolute', width: CORNER, height: CORNER },
+  cornerTL: {
+    top: 0, left: 0,
+    borderTopWidth: THICK, borderLeftWidth: THICK, borderTopLeftRadius: 14,
+  },
+  cornerTR: {
+    top: 0, right: 0,
+    borderTopWidth: THICK, borderRightWidth: THICK, borderTopRightRadius: 14,
+  },
+  cornerBL: {
+    bottom: 0, left: 0,
+    borderBottomWidth: THICK, borderLeftWidth: THICK, borderBottomLeftRadius: 14,
+  },
+  cornerBR: {
+    bottom: 0, right: 0,
+    borderBottomWidth: THICK, borderRightWidth: THICK, borderBottomRightRadius: 14,
+  },
+  hint: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+
+  /* Gallery button (small, floating) */
+  galleryPill: {
+    position: 'absolute',
+    bottom: 28,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+  },
+  galleryPillPressed: { opacity: 0.7 },
+  galleryPillDisabled: { opacity: 0.5 },
+  galleryText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+
+  /* Result card */
+  resultCard: {
     position: 'absolute',
     left: 20,
     right: 20,
-    bottom: 60,
+    bottom: 24,
     backgroundColor: COLORS.card,
-    borderRadius: 14,
-    padding: 16,
-    alignItems: 'center',
+    borderRadius: 16,
+    padding: 14,
+    gap: 12,
   },
-  overlayText: {
-    fontSize: 16,
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  resultText: {
+    flex: 1,
+    fontSize: 15,
     fontWeight: '600',
     color: COLORS.textPrimary,
-    marginBottom: 6,
-    textAlign: 'center',
   },
-scanResult: { fontSize: 14, textAlign: 'center', marginBottom: 8, fontWeight: '600' },
-success:    { color: '#2E7D32' },   // green — attendance recorded
-error:      { color: '#C62828' },   // red — failed / duplicate
-scanData:   { fontSize: 12, color: COLORS.textSecondary, textAlign: 'center', marginBottom: 12 },
+  success: { color: '#2E7D32' },
+  error: { color: '#C62828' },
   centered: {
     flex: 1,
     backgroundColor: COLORS.background,

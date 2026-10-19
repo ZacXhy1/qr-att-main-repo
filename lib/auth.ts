@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { supabase } from './supabase';
 import type { Session, User } from '@supabase/supabase-js';
+import * as Linking from 'expo-linking';
 
 type AuthState = {
   session: Session | null;
@@ -56,6 +57,9 @@ export async function signUp(
     password,
     options: {
       data: profile ? { full_name: profile.full_name, role: profile.role } : undefined,
+      // Where the "Confirm email address" link sends the user afterwards:
+      // the app's own login screen (qr-attendance://login), not localhost.
+      emailRedirectTo: Linking.createURL('login'),
     },
   });
 
