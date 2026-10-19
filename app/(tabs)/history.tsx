@@ -1,7 +1,17 @@
 import { useFocusEffect } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  FlatList,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { COLORS } from '@/constants/colors';
 import { getTeacherEventAttendance, type TeacherEventAttendance } from '@/lib/attendance';
@@ -14,12 +24,19 @@ import { useRealtimeRefresh } from '@/lib/realtime';
 
 export default function HistoryScreen() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [role, setRole] = useState<Role | null>(null);
   const [studentRecords, setStudentRecords] = useState<AttendanceRecord[]>([]);
   const [teacherEvents, setTeacherEvents] = useState<TeacherEventAttendance[]>([]);
-  // Attendee tables stay hidden until the event card is tapped.
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  // Staff view: the event list is searchable/filterable/paged, and attendees
+  // open in their own sheet so the main list stays short.
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'all' | EventState>('all');
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [attQuery, setAttQuery] = useState('');
+  const [attFilter, setAttFilter] = useState<'all' | 'present' | 'late'>('all');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -68,8 +85,47 @@ export default function HistoryScreen() {
   // Live updates: refresh when attendance or events change.
   useRealtimeRefresh('history', ['attendance', 'events'], load);
 
-  const toggle = (eventId: string) =>
-    setExpanded((prev) => ({ ...prev, [eventId]: !prev[eventId] }));
+  const q = query.trim().toLowerCase();
+
+  const filteredEvents = useMemo(
+    () =>
+      teacherEvents.filter((e) => {
+        if (filter !== 'all' && getEventState(toCloud(e), now) !== filter) return false;
+        return !q || `${e.title} ${e.eventCode}`.toLowerCase().includes(q);
+      }),
+    [teacherEvents, filter, q, now]
+  );
+
+  // Looked up by id so the open sheet updates live when attendance changes.
+  const selected = useMemo(
+    () => teacherEvents.find((e) => e.eventId === selectedId) ?? null,
+    [teacherEvents, selectedId]
+  );
+
+  const selectedAttendees = useMemo(() => {
+    if (!selected) return [];
+    const aq = attQuery.trim().toLowerCase();
+    return [...selected.attendees]
+      .filter((a) => attFilter === 'all' || a.status === attFilter)
+      .filter((a) => !aq || (a.studentName ?? '').toLowerCase().includes(aq))
+      .sort((a, b) => (a.studentName ?? '').localeCompare(b.studentName ?? ''));
+  }, [selected, attQuery, attFilter]);
+
+  const openEvent = (id: string) => {
+    setAttQuery('');
+    setAttFilter('all');
+    setSelectedId(id);
+  };
+
+  const onSearch = (text: string) => {
+    setQuery(text);
+    setLimit(PAGE_SIZE);
+  };
+
+  const pickFilter = (value: 'all' | EventState) => {
+    setFilter(value);
+    setLimit(PAGE_SIZE);
+  };
 
   if (loading) {
     return (
@@ -98,12 +154,21 @@ export default function HistoryScreen() {
 
   /* ---------------- Teacher view (own events) / Admin view (all events) ---------------- */
   if (role === 'teacher' || role === 'admin') {
+    const shown = Math.min(limit, filteredEvents.length);
+    const chips: { value: 'all' | EventState; label: string }[] = [
+      { value: 'all', label: 'All' },
+      { value: 'ongoing', label: STATE_LABEL.ongoing },
+      { value: 'upcoming', label: STATE_LABEL.upcoming },
+      { value: 'ended', label: STATE_LABEL.ended },
+      { value: 'closed', label: STATE_LABEL.closed },
+    ];
+    const selectedState = selected ? getEventState(toCloud(selected), now) : null;
+    const presentTotal = selected?.presentCount ?? 0;
+    const lateTotal = selected?.lateCount ?? 0;
+
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Event Attendance</Text>
-        {role === 'admin' && (
-          <Text style={styles.subtitle}>Showing every event on campus.</Text>
-        )}
 
         {teacherEvents.length === 0 ? (
           <Text style={styles.subtitle}>
@@ -112,93 +177,220 @@ export default function HistoryScreen() {
               : "You haven't created any events yet. Use the Teacher tab to create one."}
           </Text>
         ) : (
-          <FlatList
-            data={teacherEvents}
-            keyExtractor={(item) => item.eventId}
+          <ScrollView
             contentContainerStyle={styles.list}
-            renderItem={({ item }) => {
-              const isOpen = !!expanded[item.eventId];
-              return (
-                <View style={styles.card}>
-                  <Pressable style={styles.cardHeader} onPress={() => toggle(item.eventId)}>
-                    <View style={styles.cardHeaderText}>
-                      <Text style={styles.eventTitle}>{item.title}</Text>
-                      <View style={styles.badgeRow}>
-                        <View
-                          style={[
-                            styles.statusBadge,
-                            { backgroundColor: STATE_COLOR[getEventState(toCloud(item), now)] },
-                          ]}
-                        >
-                          <Text style={styles.statusBadgeText}>
-                            {STATE_LABEL[getEventState(toCloud(item), now)]}
-                          </Text>
-                        </View>
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            {role === 'admin' && (
+              <Text style={styles.evNote}>Showing every event on campus.</Text>
+            )}
+
+            <View style={styles.evSearchBox}>
+              <Ionicons name="search-outline" size={18} color={COLORS.textSecondary} />
+              <TextInput
+                style={styles.evSearchInput}
+                value={query}
+                onChangeText={onSearch}
+                placeholder="Search event title or code"
+                placeholderTextColor={COLORS.textSecondary}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {query.length > 0 && (
+                <Pressable onPress={() => onSearch('')} hitSlop={8}>
+                  <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+                </Pressable>
+              )}
+            </View>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.evChipRow}
+              keyboardShouldPersistTaps="handled"
+            >
+              {chips.map((c) => (
+                <Pressable
+                  key={c.value}
+                  style={[styles.evChip, filter === c.value && styles.evChipActive]}
+                  onPress={() => pickFilter(c.value)}
+                >
+                  <Text style={[styles.evChipText, filter === c.value && styles.evChipTextActive]}>
+                    {c.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+
+            <Text style={styles.evResultCount}>
+              {filteredEvents.length === 0
+                ? '0 results'
+                : `Showing ${shown} of ${filteredEvents.length}`}
+            </Text>
+
+            {filteredEvents.length === 0 ? (
+              <Text style={styles.evEmpty}>No events match your search or filter.</Text>
+            ) : (
+              <View style={styles.evListCard}>
+                {filteredEvents.slice(0, limit).map((item, i) => {
+                  const state = getEventState(toCloud(item), now);
+                  return (
+                    <Pressable
+                      key={item.eventId}
+                      style={[styles.evRow, i > 0 && styles.evRowDivider]}
+                      onPress={() => openEvent(item.eventId)}
+                    >
+                      <View style={styles.evBody}>
+                        <Text style={styles.evTitle} numberOfLines={1}>
+                          {item.title}
+                        </Text>
+                        <Text style={styles.evMeta} numberOfLines={1}>
+                          {item.startTime ? formatDateTime12(item.startTime) : item.eventCode}
+                        </Text>
+                        <Text style={styles.evMeta}>
+                          {item.presentCount} present · {item.lateCount} late
+                        </Text>
                       </View>
-                      <Text style={styles.eventMeta}>{item.eventCode}</Text>
-                      <Text style={styles.eventMeta}>
-                        {item.presentCount} present · {item.lateCount} late
-                      </Text>
-                      {item.startTime && (
-                        <Text style={styles.eventMeta}>{formatDateTime12(item.startTime)}</Text>
-                      )}
-                    </View>
-                    <View style={styles.headerRight}>
-                      <View style={styles.countBadge}>
-                        <Text style={styles.countText}>{item.attendeeCount}</Text>
+                      <View style={styles.evRight}>
+                        <View style={[styles.evPill, { backgroundColor: STATE_COLOR[state] }]}>
+                          <Text style={styles.evPillText}>{STATE_LABEL[state]}</Text>
+                        </View>
+                        <View style={styles.evCount}>
+                          <Ionicons name="people-outline" size={14} color={COLORS.primary} />
+                          <Text style={styles.evCountText}>{item.attendeeCount}</Text>
+                        </View>
                       </View>
                       <Ionicons
-                        name={isOpen ? 'chevron-up' : 'chevron-down'}
+                        name="chevron-forward"
                         size={18}
                         color={COLORS.textSecondary}
-                        style={styles.chevron}
+                        style={styles.evChevron}
                       />
-                    </View>
-                  </Pressable>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
 
-                  {isOpen &&
-                    (item.attendees.length === 0 ? (
-                      <Text style={styles.emptyAttendees}>No one has scanned yet.</Text>
-                    ) : (
-                      <View style={styles.table}>
-                        <View style={styles.tableHeader}>
-                          <Text style={[styles.th, styles.colName]}>Student</Text>
-                          <Text style={[styles.th, styles.colTime]}>Time</Text>
-                          <Text style={[styles.th, styles.colStatus]}>Status</Text>
-                        </View>
-                        {item.attendees.map((a, i) => (
-                          <View
-                            key={a.studentId + a.scannedAt}
-                            style={[styles.tableRow, i % 2 === 1 && styles.tableRowAlt]}
-                          >
-                            <Text style={[styles.tdName, styles.colName]} numberOfLines={2}>
-                              {a.studentName ?? shortId(a.studentId)}
-                            </Text>
-                            <View style={styles.colTime}>
-                              <Text style={styles.tdTime}>{formatTime12(a.scannedAt)}</Text>
-                              <Text style={styles.tdDate}>{formatDateOnly(a.scannedAt)}</Text>
-                            </View>
-                            <View style={styles.colStatus}>
-                              <View
-                                style={[
-                                  styles.statusPill,
-                                  a.status === 'late' ? styles.pillLate : styles.pillPresent,
-                                ]}
-                              >
-                                <Text style={styles.statusPillText}>
-                                  {a.status === 'late' ? 'Late' : 'Present'}
-                                </Text>
-                              </View>
-                            </View>
-                          </View>
-                        ))}
-                      </View>
-                    ))}
-                </View>
-              );
-            }}
-          />
+            {shown < filteredEvents.length && (
+              <Pressable style={styles.evMore} onPress={() => setLimit((l) => l + PAGE_SIZE)}>
+                <Text style={styles.evMoreText}>
+                  Show {Math.min(PAGE_SIZE, filteredEvents.length - shown)} more
+                </Text>
+              </Pressable>
+            )}
+          </ScrollView>
         )}
+
+        {/* ------------- Attendee sheet (own scroll, own search) ------------- */}
+        <Modal
+          visible={!!selected}
+          animationType="slide"
+          onRequestClose={() => setSelectedId(null)}
+        >
+          {selected && selectedState && (
+            <View style={[styles.shContainer, { paddingTop: insets.top + 12 }]}>
+              <View style={styles.shHeader}>
+                <Pressable style={styles.shClose} onPress={() => setSelectedId(null)} hitSlop={8}>
+                  <Ionicons name="arrow-back" size={22} color={COLORS.textPrimary} />
+                </Pressable>
+                <View style={styles.shHeaderText}>
+                  <Text style={styles.shTitle} numberOfLines={2}>
+                    {selected.title}
+                  </Text>
+                  <View style={styles.shMetaRow}>
+                    <View style={[styles.evPill, { backgroundColor: STATE_COLOR[selectedState] }]}>
+                      <Text style={styles.evPillText}>{STATE_LABEL[selectedState]}</Text>
+                    </View>
+                    <Text style={styles.evMeta}>Code {selected.eventCode}</Text>
+                  </View>
+                  {selected.startTime && (
+                    <Text style={styles.evMeta}>{formatDateTime12(selected.startTime)}</Text>
+                  )}
+                  {selected.venue && <Text style={styles.evMeta}>{selected.venue}</Text>}
+                </View>
+              </View>
+
+              <View style={styles.evChipRow}>
+                {(
+                  [
+                    { value: 'all', label: `All (${selected.attendeeCount})` },
+                    { value: 'present', label: `Present (${presentTotal})` },
+                    { value: 'late', label: `Late (${lateTotal})` },
+                  ] as const
+                ).map((c) => (
+                  <Pressable
+                    key={c.value}
+                    style={[styles.evChip, attFilter === c.value && styles.evChipActive]}
+                    onPress={() => setAttFilter(c.value)}
+                  >
+                    <Text
+                      style={[styles.evChipText, attFilter === c.value && styles.evChipTextActive]}
+                    >
+                      {c.label}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <View style={[styles.evSearchBox, { marginTop: 10 }]}>
+                <Ionicons name="search-outline" size={18} color={COLORS.textSecondary} />
+                <TextInput
+                  style={styles.evSearchInput}
+                  value={attQuery}
+                  onChangeText={setAttQuery}
+                  placeholder="Search student"
+                  placeholderTextColor={COLORS.textSecondary}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                />
+                {attQuery.length > 0 && (
+                  <Pressable onPress={() => setAttQuery('')} hitSlop={8}>
+                    <Ionicons name="close-circle" size={18} color={COLORS.textSecondary} />
+                  </Pressable>
+                )}
+              </View>
+
+              <FlatList
+                data={selectedAttendees}
+                keyExtractor={(a) => a.studentId + a.scannedAt}
+                style={styles.shList}
+                contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}
+                keyboardShouldPersistTaps="handled"
+                ListEmptyComponent={
+                  <Text style={styles.evEmpty}>
+                    {selected.attendees.length === 0
+                      ? 'No one has scanned yet.'
+                      : 'No students match your search or filter.'}
+                  </Text>
+                }
+                renderItem={({ item: a, index }) => (
+                  <View style={[styles.shRow, index > 0 && styles.evRowDivider]}>
+                    <View style={styles.evBody}>
+                      <Text style={styles.shName} numberOfLines={2}>
+                        {a.studentName ?? shortId(a.studentId)}
+                      </Text>
+                      <Text style={styles.evMeta}>
+                        {formatTime12(a.scannedAt)} · {formatDateOnly(a.scannedAt)}
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.evPill,
+                        a.status === 'late' ? styles.pillLate : styles.pillPresent,
+                      ]}
+                    >
+                      <Text style={styles.evPillText}>
+                        {a.status === 'late' ? 'Late' : 'Present'}
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              />
+            </View>
+          )}
+        </Modal>
       </View>
     );
   }
@@ -243,6 +435,9 @@ export default function HistoryScreen() {
   );
 }
 
+// How many events show at once; "Show more" adds another page.
+const PAGE_SIZE = 15;
+
 const STATE_LABEL: Record<EventState, string> = {
   ongoing: 'Open now',
   upcoming: 'Upcoming',
@@ -268,6 +463,93 @@ function shortId(id: string) {
 }
 
 const styles = StyleSheet.create({
+  // ---- staff event list ----
+  evNote: { fontSize: 13, color: COLORS.textSecondary, marginBottom: 10 },
+  evSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+  },
+  evSearchInput: { flex: 1, paddingVertical: 10, fontSize: 15, color: COLORS.textPrimary },
+  evChipRow: { flexDirection: 'row', gap: 8, paddingTop: 10 },
+  evChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  evChipActive: { backgroundColor: COLORS.textPrimary, borderColor: COLORS.textPrimary },
+  evChipText: { fontSize: 13, fontWeight: '600', color: COLORS.textSecondary },
+  evChipTextActive: { color: COLORS.textOnPrimary },
+  evResultCount: { fontSize: 12, color: COLORS.textSecondary, marginTop: 12, marginBottom: 8 },
+  evEmpty: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    textAlign: 'center',
+    marginTop: 24,
+  },
+  evListCard: {
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    overflow: 'hidden',
+  },
+  evRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14 },
+  evRowDivider: { borderTopWidth: 1, borderTopColor: COLORS.border },
+  evBody: { flex: 1, minWidth: 0, paddingRight: 8 },
+  evTitle: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+  evMeta: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
+  evRight: { alignItems: 'flex-end', gap: 6 },
+  evPill: { borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3, alignSelf: 'flex-start' },
+  evPillText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  evCount: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  evCountText: { fontSize: 13, fontWeight: '700', color: COLORS.primary },
+  evChevron: { marginLeft: 6 },
+  evMore: {
+    marginTop: 12,
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    backgroundColor: COLORS.card,
+    paddingVertical: 12,
+  },
+  evMoreText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
+
+  // ---- attendee sheet ----
+  shContainer: { flex: 1, backgroundColor: COLORS.background, paddingHorizontal: 20 },
+  shHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  shClose: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: COLORS.card,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  shHeaderText: { flex: 1 },
+  shTitle: { fontSize: 20, fontWeight: '700', color: COLORS.textPrimary },
+  shMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  shList: {
+    marginTop: 12,
+    backgroundColor: COLORS.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  shRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14 },
+  shName: { fontSize: 15, fontWeight: '600', color: COLORS.textPrimary },
+
   statusPill: {
     borderRadius: 999,
     paddingHorizontal: 8,
