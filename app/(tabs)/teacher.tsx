@@ -19,6 +19,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
+import FullscreenQRModal from '@/components/FullscreenQRModal';
 import KeyboardAvoid from '@/components/KeyboardAvoid';
 import { useAuth } from '@/lib/auth';
 import {
@@ -97,6 +98,11 @@ export default function TeacherScreen() {
 
   // QR for an existing event ("Show QR" on a My Events card), shown in a modal.
   const [qrModal, setQrModal] = useState<{ event: CloudEvent; payload: string } | null>(null);
+  const [fullscreenQR, setFullscreenQR] = useState<{
+    payload: string;
+    title?: string;
+    code?: string;
+  } | null>(null);
   const [qrBusy, setQrBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -571,6 +577,24 @@ export default function TeacherScreen() {
               return null;
             }
           })()}
+          <Pressable
+            style={styles.qrActionButton}
+            onPress={() => {
+              let title: string | undefined;
+              let code: string | undefined;
+              try {
+                const p = JSON.parse(payload);
+                title = p.title;
+                code = p.event;
+              } catch {
+                // ignore - fullscreen view still works without a caption
+              }
+              setFullscreenQR({ payload, title, code });
+            }}
+          >
+            <Ionicons name="expand-outline" size={11} color={COLORS.primary} />
+            <Text style={styles.qrActionButtonText}>View Fullscreen</Text>
+          </Pressable>
         </View>
       )}
 
@@ -672,18 +696,31 @@ export default function TeacherScreen() {
                 </View>
                 <View style={styles.modalActions}>
                   <Pressable
-                    style={styles.smallButton}
+                    style={styles.qrActionButton}
+                    onPress={() =>
+                      setFullscreenQR({
+                        payload: qrModal.payload,
+                        title: qrModal.event.title,
+                        code: qrModal.event.event_code,
+                      })
+                    }
+                  >
+                    <Ionicons name="expand-outline" size={11} color={COLORS.primary} />
+                    <Text style={styles.qrActionButtonText}>Fullscreen</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.qrActionButton}
                     onPress={handleRegenerateQR}
                     disabled={qrBusy}
                   >
-                    <Ionicons name="refresh-outline" size={16} color={COLORS.danger} />
-                    <Text style={[styles.smallButtonText, { color: COLORS.danger }]}>
+                    <Ionicons name="refresh-outline" size={11} color={COLORS.danger} />
+                    <Text style={[styles.qrActionButtonText, { color: COLORS.danger }]}>
                       {qrBusy ? '...' : 'Regenerate'}
                     </Text>
                   </Pressable>
-                  <Pressable style={styles.smallButton} onPress={() => setQrModal(null)}>
-                    <Ionicons name="close-outline" size={16} color={COLORS.primary} />
-                    <Text style={styles.smallButtonText}>Close</Text>
+                  <Pressable style={styles.qrActionButton} onPress={() => setQrModal(null)}>
+                    <Ionicons name="close-outline" size={11} color={COLORS.primary} />
+                    <Text style={styles.qrActionButtonText}>Close</Text>
                   </Pressable>
                 </View>
               </>
@@ -691,6 +728,14 @@ export default function TeacherScreen() {
           </View>
         </View>
       </Modal>
+
+      <FullscreenQRModal
+        visible={!!fullscreenQR}
+        payload={fullscreenQR?.payload ?? null}
+        title={fullscreenQR?.title}
+        code={fullscreenQR?.code}
+        onClose={() => setFullscreenQR(null)}
+      />
     </ScrollView>
     </KeyboardAvoid>
   );
@@ -995,7 +1040,7 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
     marginTop: 16,
   },
   eventCardActions: {
@@ -1019,6 +1064,22 @@ const styles = StyleSheet.create({
   },
   smallButtonText: {
     fontSize: 13,
+    fontWeight: '600',
+    color: COLORS.primary,
+  },
+  qrActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: COLORS.background,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+  },
+  qrActionButtonText: {
+    fontSize: 10,
     fontWeight: '600',
     color: COLORS.primary,
   },
