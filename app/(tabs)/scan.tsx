@@ -80,7 +80,6 @@ const handleScanAgain = () => {
   setMessage(null);
 };
 
-// Pick a photo/screenshot from the gallery and look for a QR code in it.
 const handleImportImage = async () => {
   if (importing) return;
   setMessage(null);
@@ -103,7 +102,6 @@ const handleImportImage = async () => {
       return;
     }
 
-    // Same path as a live camera scan.
     handleBarcodeScanned({ data: results[0].data });
   } catch {
     setScanned(true);
@@ -133,7 +131,6 @@ const handleImportImage = async () => {
         onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
       />
 
-      {/* Dimmed camera with a clear square "window" in the middle */}
       <View style={styles.mask} pointerEvents="none">
         <View style={styles.maskDim} />
         <View style={styles.maskMiddle}>
@@ -158,7 +155,6 @@ const handleImportImage = async () => {
       </View>
 
       {scanned ? (
-        // Result: compact card instead of covering the camera
         <View style={styles.resultCard}>
           {checking ? (
             <Text style={styles.resultText}>Checking...</Text>
@@ -186,7 +182,6 @@ const handleImportImage = async () => {
           )}
         </View>
       ) : (
-        // Small floating pill so the camera stays visible
         <Pressable
           style={({ pressed }) => [
             styles.galleryPill,

@@ -3,7 +3,7 @@ import { supabase } from './supabase';
 export type EventStatus = 'open' | 'closed';
 
 export type Event = {
-  eventId: string; // the public event code, e.g. EVT-2026-0002
+  eventId: string;
   title: string;
   start: string;
   end: string;
@@ -26,9 +26,6 @@ export type CloudEvent = {
   created_at: string;
 };
 
-// Event times come from the date picker as local time without a timezone
-// (e.g. "2026-10-19T14:00:00"). Convert them to a real UTC instant so the
-// database (and its time-window checks) interpret them correctly.
 function toUtcISO(value?: string): string | null {
   if (!value) return null;
   const d = new Date(value);
@@ -42,8 +39,6 @@ export async function createEvent(
     data: { user },
   } = await supabase.auth.getUser();
 
-  // insert (not upsert) so a code that already exists is reported instead of
-  // trying to overwrite somebody else's event.
   const { error } = await supabase.from('events').insert(
     {
       event_code: event.eventId,
@@ -72,8 +67,6 @@ export type EventUpdate = {
   graceMinutes?: number;
 };
 
-// Edits an existing event by its internal id. The event_code (used in the
-// QR) is never changed here - it's the stable identifier students scan.
 export async function updateEvent(
   eventId: string,
   updates: EventUpdate
@@ -93,9 +86,6 @@ export async function updateEvent(
   return { error: error?.message ?? null };
 }
 
-// Closing an event blocks new scans immediately (see registerAttendance
-// in lib/attendance.ts), regardless of the start/end times baked into
-// any QR codes already generated for it.
 export async function setEventStatus(
   eventId: string,
   status: EventStatus
@@ -117,15 +107,11 @@ export async function getEventsByTeacher(
   return (data ?? []) as CloudEvent[];
 }
 
-// Makes a new secret for the event, so every QR printed or shared before
-// stops working. Only the creator or an admin is allowed (checked in the DB).
 export async function rotateEventSecret(eventId: string): Promise<{ error: string | null }> {
   const { error } = await supabase.rpc('rotate_event_secret', { p_event_id: eventId });
   return { error: error?.message ?? null };
 }
 
-// Reads the QR secret for an event. RLS only lets the event's creator (or an
-// admin) read it, so students get null.
 export async function getEventSecret(code: string): Promise<string | null> {
   const { data, error } = await supabase
     .from('events')
@@ -155,17 +141,12 @@ export async function getEventByCode(
   return data as CloudEvent;
 }
 
-
 /* ------------------------------------------------------------------ */
 /* Student: browse events                                              */
 /* ------------------------------------------------------------------ */
 
 export type EventState = 'ongoing' | 'upcoming' | 'ended' | 'closed';
 
-// closed   = a teacher/admin closed it (no scanning, whatever the time)
-// ended    = its end time has passed
-// upcoming = it has not started yet
-// ongoing  = open and inside its time window (students can scan now)
 export function getEventState(
   event: Pick<CloudEvent, 'status' | 'start_time' | 'end_time'>,
   now: number = Date.now()

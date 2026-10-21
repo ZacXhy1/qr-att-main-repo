@@ -5,13 +5,6 @@ import { AppState, Platform } from 'react-native';
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
 
-/**
- * Session storage.
- * On phones the session (access + refresh token) is kept in the device's
- * encrypted secure storage (iOS Keychain / Android Keystore). SecureStore
- * limits each value to ~2 KB and a session is bigger, so the value is split
- * into small chunks. On web we fall back to localStorage.
- */
 const CHUNK_SIZE = 1000;
 
 const secureStorage = {
@@ -22,7 +15,7 @@ const secureStorage = {
     const parts: string[] = [];
     for (let i = 0; i < Number(count); i++) {
       const part = await SecureStore.getItemAsync(`${key}.${i}`);
-      if (part === null) return null; // incomplete -> treat as signed out
+      if (part === null) return null;
       parts.push(part);
     }
     return parts.join('');
@@ -37,7 +30,6 @@ const secureStorage = {
     }
     await SecureStore.setItemAsync(`${key}.n`, String(chunks));
 
-    // Remove leftover chunks from a previously longer value.
     for (let i = chunks; i < previous; i++) {
       await SecureStore.deleteItemAsync(`${key}.${i}`);
     }
@@ -71,7 +63,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
-// On phones, only refresh tokens while the app is in the foreground.
 if (Platform.OS !== 'web') {
   AppState.addEventListener('change', (state) => {
     if (state === 'active') {

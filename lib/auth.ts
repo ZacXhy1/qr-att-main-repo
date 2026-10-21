@@ -11,7 +11,7 @@ type AuthState = {
 
 let globalSession: Session | null = null;
 let globalUser: User | null = null;
-let globalLoading = true; // true until the saved session has been restored
+let globalLoading = true;
 let listeners: Set<() => void> = new Set();
 let snapshot: AuthState = { session: null, user: null, loading: true };
 
@@ -57,8 +57,6 @@ export async function signUp(
     password,
     options: {
       data: profile ? { full_name: profile.full_name, role: profile.role } : undefined,
-      // Where the "Confirm email address" link sends the user afterwards:
-      // the app's own login screen (qr-attendance://login), not localhost.
       emailRedirectTo: Linking.createURL('login'),
     },
   });
@@ -77,9 +75,6 @@ export async function signIn(email: string, password: string) {
   return { data, error };
 }
 
-// Ends the Supabase session and wipes the saved copy. If the server can't be
-// reached (offline), fall back to clearing only this device's session so the
-// user is never left half signed in.
 async function clearSupabaseSession() {
   try {
     const { error } = await supabase.auth.signOut();
@@ -97,8 +92,6 @@ export async function signOut() {
 
 /* ----------------------- Restore session on app start ----------------------- */
 
-// Reads the saved session (secure storage) so users stay logged in after
-// closing the app. Until it finishes, the app shows a loading spinner.
 async function initAuth() {
   try {
     const { data } = await supabase.auth.getSession();
@@ -107,9 +100,6 @@ async function initAuth() {
     setAuth(null);
   }
 
-  // Keep the app in sync when Supabase refreshes or invalidates the session.
-  // SIGNED_IN / USER_UPDATED are deliberately ignored: they also fire during
-  // the password-reset code flow and must not log the user in.
   supabase.auth.onAuthStateChange((event, session) => {
     if (event === 'SIGNED_OUT') {
       setAuth(null);
@@ -123,17 +113,12 @@ void initAuth();
 
 /* ----------------------- Password reset (email code) ----------------------- */
 
-// Step 1: email the user a recovery code.
 // NOTE: the "Reset Password" email template in Supabase must include {{ .Token }}.
 export async function requestPasswordReset(email: string) {
   const { error } = await supabase.auth.resetPasswordForEmail(email);
   return { error };
 }
 
-// Step 2: verify the code and set the new password.
-// verifyOtp briefly creates a recovery session on the Supabase client (we do NOT
-// call setAuth, so the app doesn't navigate). We sign out right after, so the
-// user logs in with the new password.
 export async function resetPasswordWithCode(
   email: string,
   code: string,

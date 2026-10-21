@@ -29,7 +29,6 @@ const ROLES: Role[] = ['student', 'teacher', 'admin'];
 
 type Tab = 'users' | 'events' | 'records';
 
-// How many rows are shown at once; "Show more" adds another page.
 const PAGE_SIZE = 15;
 
 const STATE_LABEL: Record<EventState, string> = {
@@ -57,7 +56,6 @@ export default function AdminScreen() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
 
-  // View state: which list is showing, search, filters, paging.
   const [tab, setTab] = useState<Tab>('users');
   const [query, setQuery] = useState('');
   const [userFilter, setUserFilter] = useState<'all' | Role>('all');
@@ -66,7 +64,6 @@ export default function AdminScreen() {
   const [limit, setLimit] = useState(PAGE_SIZE);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
 
-  // Re-evaluate event badges every 30 s (Upcoming -> Open now -> Ended).
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
@@ -100,7 +97,6 @@ export default function AdminScreen() {
     }, [role, load])
   );
 
-  // Live updates: attendance, events and users.
   useRealtimeRefresh('admin', ['attendance', 'events', 'profiles'], load, role === 'admin');
 
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u])), [users]);
@@ -118,8 +114,6 @@ export default function AdminScreen() {
     [users, userFilter, q]
   );
 
-  // Filter by the real state (open now / upcoming / ended / closed), the same
-  // one shown on each row's badge, not just the saved open/closed status.
   const filteredEvents = useMemo(
     () =>
       events.filter((e) => {
@@ -333,7 +327,6 @@ export default function AdminScreen() {
     >
       <Text style={styles.title}>Admin Dashboard</Text>
 
-      {/* Stat tiles double as the section switcher */}
       <View style={styles.statsRow}>
         {tiles.map((t) => (
           <Pressable

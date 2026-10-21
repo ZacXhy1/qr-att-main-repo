@@ -1,7 +1,7 @@
 export type QRPayload = {
   v: 1;
   event: string;
-  t: string; // secret token, checked by the database
+  t: string;
   title?: string;
   start?: string;
   end?: string;

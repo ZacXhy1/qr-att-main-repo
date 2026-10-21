@@ -24,17 +24,13 @@ export type RegisterResult = {
 
 export async function registerAttendance(
   rawPayload: string,
-  _studentId?: string // kept so existing callers still compile; the DB uses the signed-in user
+  _studentId?: string
 ): Promise<RegisterResult> {
-  // 1. Quick local check so obviously wrong QR codes never hit the network.
   const parsed = parseQRPayload(rawPayload);
   if (!parsed.ok) {
     return { success: false, message: parsed.message };
   }
 
-  // 2. The database does ALL the real checks inside record_attendance():
-  //    signed in, student role, valid event + secret, open, time window,
-  //    duplicate. It also sets the time and present/late status.
   const { data, error } = await supabase.rpc('record_attendance', {
     p_event_code: parsed.payload.event,
     p_token: parsed.payload.t,
@@ -111,8 +107,6 @@ export type TeacherEventSummary = {
   attendeeCount: number;
 };
 
-// Teachers see the events they created. Admins pass allEvents = true to see
-// every event (the database allows this through the admin RLS policies).
 export async function getTeacherEventAttendance(
   userId: string,
   allEvents: boolean = false
@@ -140,7 +134,6 @@ export async function getTeacherEventAttendance(
   if (attError) throw new Error(attError.message);
   if (!attendance) return [];
 
-  // Look up student names (teachers may read profiles of their attendees).
   const studentIds = Array.from(new Set(attendance.map((a: any) => a.student_id as string)));
   const names: Record<string, string> = {};
   if (studentIds.length > 0) {

@@ -1,10 +1,5 @@
 -- ============================================================
 -- QR-ATT — CONSOLIDATED SCHEMA (final state, includes hardening)
---
--- Paste the ENTIRE file into Supabase Dashboard -> SQL Editor -> Run.
--- IDEMPOTENT: safe on a brand-new project AND on your existing database
--- (it replaces phase3 + stage1 + stage3 + the ad-hoc fixes + stage5).
---
 -- Sections
 --   1. Tables
 --   2. Columns added over time (no-op on a fresh install)
@@ -30,7 +25,7 @@ create table if not exists public.profiles (
 
 create table if not exists public.events (
   id uuid primary key default gen_random_uuid(),
-  event_code text not null unique,           -- public id printed in the QR
+  event_code text not null unique,
   title text not null,
   start_time timestamptz,
   end_time timestamptz,
@@ -43,11 +38,9 @@ create table if not exists public.attendance (
   student_id uuid not null references auth.users (id) on delete cascade,
   event_id uuid not null references public.events (id) on delete cascade,
   scanned_at timestamptz not null default now(),
-  unique (student_id, event_id)              -- one record per student per event
+  unique (student_id, event_id)
 );
 
--- Secret that must be inside the QR. Kept in its OWN table so students
--- (who can read every event) can never read it.
 create table if not exists public.event_secrets (
   event_id uuid primary key references public.events (id) on delete cascade,
   secret text not null
@@ -71,7 +64,6 @@ alter table public.events
 alter table public.attendance
   add column if not exists status text not null default 'present';
 
--- Extra student info (needed later for analytics by section/program).
 alter table public.profiles
   add column if not exists student_number text,
   add column if not exists section text,
@@ -92,7 +84,6 @@ alter table public.events drop constraint if exists events_grace_minutes_check;
 alter table public.events add constraint events_grace_minutes_check
   check (grace_minutes >= 0);
 
--- NOT VALID = enforced for new/changed rows, old test rows are not re-checked.
 alter table public.events drop constraint if exists events_time_order_check;
 alter table public.events add constraint events_time_order_check
   check (start_time is null or end_time is null or end_time > start_time) not valid;
@@ -136,9 +127,6 @@ $$;
 -- 5. TRIGGERS
 -- ------------------------------------------------------------
 
--- 5a. Sign-up ALWAYS creates a student. The role in the sign-up metadata is
---     ignored, so nobody can self-register as teacher/admin. Promote people
---     from the Admin tab (or the SQL editor).
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql security definer set search_path = public
@@ -160,9 +148,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- 5b. Profile protection: only admins change roles, the last admin cannot be
---     demoted, and users cannot edit their own id/email. The SQL editor has no
---     logged-in user (auth.uid() is null), so you can still bootstrap an admin.
 create or replace function public.protect_profile_role()
 returns trigger
 language plpgsql security definer set search_path = public
@@ -191,7 +176,6 @@ create trigger protect_profile_role
   before update on public.profiles
   for each row execute procedure public.protect_profile_role();
 
--- 5c. Attendance: the database (not the client) decides the time and status.
 create or replace function public.set_attendance_status()
 returns trigger
 language plpgsql security definer set search_path = public
@@ -203,7 +187,7 @@ begin
   select start_time, grace_minutes into v_start, v_grace
   from public.events where id = new.event_id;
 
-  new.scanned_at := now();   -- a client can no longer back-date a scan
+  new.scanned_at := now();
 
   if v_start is not null and now() > v_start + make_interval(mins => v_grace) then
     new.status := 'late';
@@ -219,7 +203,6 @@ create trigger set_attendance_status
   before insert on public.attendance
   for each row execute procedure public.set_attendance_status();
 
--- 5d. Every new event automatically gets its QR secret.
 create or replace function public.create_event_secret()
 returns trigger
 language plpgsql security definer set search_path = public
@@ -236,7 +219,6 @@ create trigger create_event_secret
   after insert on public.events
   for each row execute procedure public.create_event_secret();
 
--- Backfill secrets for events that existed before this file.
 insert into public.event_secrets (event_id)
 select id from public.events
 on conflict (event_id) do nothing;
@@ -269,7 +251,6 @@ create policy "Teachers can view profiles of their attendees"
     )
   );
 
--- No client INSERT policy: profiles are created by the sign-up trigger only.
 drop policy if exists "Users can insert their own profile" on public.profiles;
 
 drop policy if exists "Users can update their own profile" on public.profiles;
@@ -290,7 +271,7 @@ create policy "Events are readable by any authenticated user"
   on public.events for select
   using (auth.uid() is not null);
 
-drop policy if exists "Admins can view all events" on public.events;  -- redundant
+drop policy if exists "Admins can view all events" on public.events;
 
 drop policy if exists "Users can insert events" on public.events;
 drop policy if exists "Teachers and admins can insert events" on public.events;
@@ -336,8 +317,6 @@ create policy "Admins can view all attendance"
   on public.attendance for select
   using (public.is_admin());
 
--- No client INSERT policy on purpose: attendance is recorded ONLY through
--- public.record_attendance() below, which checks the QR secret.
 drop policy if exists "Students can insert their own attendance" on public.attendance;
 
 drop policy if exists "Admins can update all attendance" on public.attendance;
@@ -352,8 +331,6 @@ create policy "Admins can delete attendance"
   using (public.is_admin());
 
 -- ---- event_secrets -------------------------------------------
--- Only the event's creator (while still staff) and admins can read a secret.
--- Nobody can write it from the client (the trigger / RPC below do that).
 drop policy if exists "Creators and admins can read event secrets" on public.event_secrets;
 create policy "Creators and admins can read event secrets"
   on public.event_secrets for select
@@ -370,9 +347,6 @@ create policy "Creators and admins can read event secrets"
 
 -- ------------------------------------------------------------
 -- 7. record_attendance(): the ONLY way to record attendance
---    Returns jsonb: { ok, code, message, title?, status? }
---    code = ok | unauthorized | forbidden | invalid_qr | closed |
---           not_started | ended | duplicate
 -- ------------------------------------------------------------
 create or replace function public.record_attendance(p_event_code text, p_token text)
 returns jsonb
@@ -399,7 +373,6 @@ begin
     select secret into v_secret from public.event_secrets where event_id = v_event.id;
   end if;
 
-  -- Same answer for "no such event" and "wrong secret" so codes can't be probed.
   if not found or v_secret is null or p_token is null or p_token <> v_secret then
     return jsonb_build_object('ok', false, 'code', 'invalid_qr',
                               'message', 'Invalid QR code.');
@@ -421,7 +394,7 @@ begin
   begin
     insert into public.attendance (student_id, event_id)
     values (v_uid, v_event.id)
-    returning status into v_status;     -- status/time were set by the trigger
+    returning status into v_status;
   exception when unique_violation then
     return jsonb_build_object('ok', false, 'code', 'duplicate',
                               'message', 'Already registered for this event.',
@@ -437,7 +410,6 @@ begin
 end;
 $$;
 
--- Teacher/admin can invalidate a leaked QR (old printouts stop working).
 create or replace function public.rotate_event_secret(p_event_id uuid)
 returns void
 language plpgsql security definer set search_path = public

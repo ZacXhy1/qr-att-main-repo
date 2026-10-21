@@ -1,5 +1,3 @@
-// Shared input validation. Each function returns an error message,
-// or null when the value is fine.
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 

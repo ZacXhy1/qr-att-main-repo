@@ -118,8 +118,6 @@ export type AdminAttendance = {
   status: 'present' | 'late';
 };
 
-// Most recent records first. Names/titles are matched on the screen using the
-// users and events it already loads.
 export async function getAllAttendance(limit = 100): Promise<AdminAttendance[]> {
   const { data, error } = await supabase
     .from('attendance')

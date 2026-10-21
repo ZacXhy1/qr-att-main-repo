@@ -18,9 +18,6 @@ type Props = {
   onClose: () => void;
 };
 
-// A large, high-contrast, edge-to-edge view of a single QR code - meant to
-// be held up or projected for a room full of students to scan, rather than
-// the small inline/preview size used elsewhere on the Events screen.
 export default function FullscreenQRModal({ visible, payload, title, code, onClose }: Props) {
   const { width, height } = Dimensions.get('window');
   const qrSize = Math.min(width, height) * 0.78;

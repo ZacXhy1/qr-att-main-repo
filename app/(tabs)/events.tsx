@@ -43,7 +43,6 @@ export default function EventsScreen() {
   const [attended, setAttended] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>('available');
 
-  // Re-evaluate every 30 s so events move from Upcoming -> Open -> Ended on their own.
   const [tick, setTick] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setTick(Date.now()), 30000);
@@ -71,7 +70,6 @@ export default function EventsScreen() {
     }, [load])
   );
 
-  // Live updates: new/closed events and your own attendance.
   useRealtimeRefresh('student-events', ['events', 'attendance'], load);
 
   const onRefresh = async () => {
@@ -85,7 +83,6 @@ export default function EventsScreen() {
     const withState = events.map((event) => ({ event, state: getEventState(event, now) }));
 
     if (filter === 'available') {
-      // Ongoing first, then upcoming (soonest first).
       return withState
         .filter((x) => x.state === 'ongoing' || x.state === 'upcoming')
         .sort((a, b) => {
@@ -96,7 +93,6 @@ export default function EventsScreen() {
         });
     }
 
-    // Past: ended or closed, most recent first.
     return withState
       .filter((x) => x.state === 'ended' || x.state === 'closed')
       .sort((a, b) => {

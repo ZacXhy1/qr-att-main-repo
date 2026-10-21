@@ -30,8 +30,6 @@ export default function HistoryScreen() {
   const [role, setRole] = useState<Role | null>(null);
   const [studentRecords, setStudentRecords] = useState<AttendanceRecord[]>([]);
   const [teacherEvents, setTeacherEvents] = useState<TeacherEventAttendance[]>([]);
-  // Staff view: the event list is searchable/filterable/paged, and attendees
-  // open in their own sheet so the main list stays short.
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'all' | EventState>('all');
   const [limit, setLimit] = useState(PAGE_SIZE);
@@ -41,7 +39,6 @@ export default function HistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Re-render every 30 s so Upcoming / Open now / Ended badges stay current.
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
@@ -60,7 +57,6 @@ export default function HistoryScreen() {
       setRole(currentRole);
 
       if (currentRole === 'teacher' || currentRole === 'admin') {
-        // Teachers: their own events. Admins: every event.
         const events = await getTeacherEventAttendance(user.id, currentRole === 'admin');
         setTeacherEvents(events);
         setStudentRecords([]);
@@ -83,7 +79,6 @@ export default function HistoryScreen() {
     }, [load])
   );
 
-  // Live updates: refresh when attendance or events change.
   useRealtimeRefresh('history', ['attendance', 'events'], load);
 
   const q = query.trim().toLowerCase();
@@ -97,7 +92,6 @@ export default function HistoryScreen() {
     [teacherEvents, filter, q, now]
   );
 
-  // Looked up by id so the open sheet updates live when attendance changes.
   const selected = useMemo(
     () => teacherEvents.find((e) => e.eventId === selectedId) ?? null,
     [teacherEvents, selectedId]
@@ -440,7 +434,6 @@ export default function HistoryScreen() {
   );
 }
 
-// How many events show at once; "Show more" adds another page.
 const PAGE_SIZE = 15;
 
 const STATE_LABEL: Record<EventState, string> = {
@@ -457,12 +450,10 @@ const STATE_COLOR: Record<EventState, string> = {
   closed: COLORS.danger,
 };
 
-// getEventState only needs the status and the start/end times.
 function toCloud(e: TeacherEventAttendance) {
   return { status: e.status, start_time: e.startTime, end_time: e.endTime } as any;
 }
 
-// Last 8 characters of a uuid - names come in a later phase.
 function shortId(id: string) {
   return id ? `…${id.slice(-8)}` : 'unknown';
 }

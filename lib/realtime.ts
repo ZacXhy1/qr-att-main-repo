@@ -3,15 +3,6 @@ import { useCallback, useEffect, useRef } from 'react';
 
 import { supabase } from './supabase';
 
-/**
- * Re-runs `onChange` whenever a row in one of `tables` is inserted, updated or
- * deleted (Supabase Realtime). Supabase only sends changes the signed-in user
- * is allowed to read (RLS), so each role only reacts to its own data.
- *
- * - Subscribes only while the screen is focused, and unsubscribes on blur.
- * - Bursts of changes are merged into a single refresh (400 ms debounce).
- * - Set `enabled` to false to skip subscribing (e.g. wrong role).
- */
 export function useRealtimeRefresh(
   name: string,
   tables: string[],

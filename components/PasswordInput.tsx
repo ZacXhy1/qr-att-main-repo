@@ -6,7 +6,6 @@ import { COLORS } from '@/constants/colors';
 
 type Props = Omit<TextInputProps, 'secureTextEntry'>;
 
-/** Password field with a show/hide (eye) toggle. */
 export default function PasswordInput({ style, editable, ...rest }: Props) {
   const [visible, setVisible] = useState(false);
 

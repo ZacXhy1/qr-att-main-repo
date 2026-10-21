@@ -39,7 +39,6 @@ import { buildQRPayload } from '@/lib/qr';
 import { useRealtimeRefresh } from '@/lib/realtime';
 import { useRole } from '@/lib/role';
 
-// Random, readable event code, e.g. EVT-2026-K7M2QX (no 0/O/1/I look-alikes).
 function generateEventCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let suffix = '';
@@ -76,7 +75,6 @@ export default function TeacherScreen() {
   const { user } = useAuth();
   const { role, loading: roleLoading } = useRole();
 
-  // Re-render every 30 s so Upcoming -> Open -> Ended badges stay current.
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30000);
@@ -96,7 +94,6 @@ export default function TeacherScreen() {
   const [editingPart, setEditingPart] = useState<'date' | 'time'>('date');
   const [payload, setPayload] = useState<string | null>(null);
 
-  // QR for an existing event ("Show QR" on a My Events card), shown in a modal.
   const [qrModal, setQrModal] = useState<{ event: CloudEvent; payload: string } | null>(null);
   const [fullscreenQR, setFullscreenQR] = useState<{
     payload: string;
@@ -106,15 +103,10 @@ export default function TeacherScreen() {
   const [qrBusy, setQrBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Editing an existing event instead of creating a new one.
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
-  // Which half of the screen is showing: the events list or the create/edit
-  // form. Keeping them as separate segments (instead of one long stacked
-  // scroll) means "My Events" doesn't sit below the whole form every time.
   const [view, setView] = useState<'list' | 'form'>('list');
 
-  // "My Events" - the teacher's own events, so they can edit/close/reopen.
   const [myEvents, setMyEvents] = useState<CloudEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
   const [eventsError, setEventsError] = useState<string | null>(null);
@@ -143,7 +135,6 @@ export default function TeacherScreen() {
     }, [role, loadMyEvents])
   );
 
-  // Live updates: e.g. an admin closes or edits one of your events.
   useRealtimeRefresh(
     'teacher-events',
     ['events'],
@@ -220,7 +211,6 @@ export default function TeacherScreen() {
     setView('form');
   };
 
-  // Builds the QR (event code + secret token). The secret comes from the DB.
   const showQR = async (event: { eventId: string; title: string; start: string; end: string }) => {
     const token = await getEventSecret(event.eventId);
     if (!token) {
@@ -280,7 +270,7 @@ export default function TeacherScreen() {
               Alert.alert('Error', 'The QR was regenerated but could not be loaded. Tap Show QR again.');
               return;
             }
-            setPayload(null); // the QR under the form is now out of date
+            setPayload(null);
             setQrModal({ event, payload: qr });
           },
         },
@@ -341,8 +331,6 @@ export default function TeacherScreen() {
       }
       setMessage('Event saved! Scan the QR with the Scan tab to test it.');
       showQR(event);
-      // Switch to edit mode so pressing Save again updates this event
-      // instead of creating a duplicate.
       getEventByCode(event.eventId).then((created) => {
         if (created) {
           setEditingEventId(created.id);
@@ -569,7 +557,7 @@ export default function TeacherScreen() {
             try {
               const p = JSON.parse(payload);
               return (
-                <Text style={styles.qrCaption}>
+                <Text style={[styles.qrCaption, styles.qrCaptionForm]}>
                   {p.title} · {p.event}
                 </Text>
               );
@@ -578,7 +566,7 @@ export default function TeacherScreen() {
             }
           })()}
           <Pressable
-            style={styles.qrActionButton}
+            style={[styles.qrBtn, styles.qrBtnPrimary, styles.qrBtnFormFullscreen]}
             onPress={() => {
               let title: string | undefined;
               let code: string | undefined;
@@ -586,14 +574,12 @@ export default function TeacherScreen() {
                 const p = JSON.parse(payload);
                 title = p.title;
                 code = p.event;
-              } catch {
-                // ignore - fullscreen view still works without a caption
-              }
+              } catch {}
               setFullscreenQR({ payload, title, code });
             }}
           >
-            <Ionicons name="expand-outline" size={11} color={COLORS.primary} />
-            <Text style={styles.qrActionButtonText}>View Fullscreen</Text>
+            <Ionicons name="expand-outline" size={20} color="#FFFFFF" />
+            <Text style={[styles.qrBtnText, styles.qrBtnTextPrimary]}>View Fullscreen</Text>
           </Pressable>
         </View>
       )}
@@ -690,13 +676,13 @@ export default function TeacherScreen() {
             {qrModal && (
               <>
                 <Text style={styles.modalTitle}>{qrModal.event.title}</Text>
-                <Text style={styles.qrCaption}>{qrModal.event.event_code}</Text>
+                <Text style={[styles.qrCaption, styles.qrCaptionModal]}>{qrModal.event.event_code}</Text>
                 <View style={styles.qrBox}>
                   <QRCode value={qrModal.payload} size={220} />
                 </View>
                 <View style={styles.modalActions}>
                   <Pressable
-                    style={styles.qrActionButton}
+                    style={[styles.qrBtn, styles.qrBtnPrimary]}
                     onPress={() =>
                       setFullscreenQR({
                         payload: qrModal.payload,
@@ -705,23 +691,28 @@ export default function TeacherScreen() {
                       })
                     }
                   >
-                    <Ionicons name="expand-outline" size={11} color={COLORS.primary} />
-                    <Text style={styles.qrActionButtonText}>Fullscreen</Text>
+                    <Ionicons name="expand-outline" size={20} color="#FFFFFF" />
+                    <Text style={[styles.qrBtnText, styles.qrBtnTextPrimary]}>Fullscreen</Text>
                   </Pressable>
-                  <Pressable
-                    style={styles.qrActionButton}
-                    onPress={handleRegenerateQR}
-                    disabled={qrBusy}
-                  >
-                    <Ionicons name="refresh-outline" size={11} color={COLORS.danger} />
-                    <Text style={[styles.qrActionButtonText, { color: COLORS.danger }]}>
-                      {qrBusy ? '...' : 'Regenerate'}
-                    </Text>
-                  </Pressable>
-                  <Pressable style={styles.qrActionButton} onPress={() => setQrModal(null)}>
-                    <Ionicons name="close-outline" size={11} color={COLORS.primary} />
-                    <Text style={styles.qrActionButtonText}>Close</Text>
-                  </Pressable>
+                  <View style={styles.modalActionsRow}>
+                    <Pressable
+                      style={[styles.qrBtn, styles.qrBtnHalf]}
+                      onPress={handleRegenerateQR}
+                      disabled={qrBusy}
+                    >
+                      <Ionicons name="refresh-outline" size={20} color={COLORS.danger} />
+                      <Text style={[styles.qrBtnText, { color: COLORS.danger }]}>
+                        {qrBusy ? '...' : 'Regenerate'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.qrBtn, styles.qrBtnHalf]}
+                      onPress={() => setQrModal(null)}
+                    >
+                      <Ionicons name="close-outline" size={22} color={COLORS.primary} />
+                      <Text style={styles.qrBtnText}>Close</Text>
+                    </Pressable>
+                  </View>
                 </View>
               </>
             )}
@@ -760,7 +751,6 @@ function PickerField({ value, icon, onPress }: PickerFieldProps) {
   );
 }
 
-// Badge shown on each event: based on its status AND its start/end time.
 const STATE_LABEL: Record<EventState, string> = {
   ongoing: 'Open now',
   upcoming: 'Upcoming',
@@ -1039,9 +1029,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modalActions: {
+    width: '100%',
+    gap: 10,
+    marginTop: 8,
+  },
+  modalActionsRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 16,
+    gap: 10,
   },
   eventCardActions: {
     flexDirection: 'row',
@@ -1067,20 +1061,41 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: COLORS.primary,
   },
-  qrActionButton: {
+  qrCaptionModal: {
+    marginBottom: 14,
+  },
+  qrCaptionForm: {
+    marginTop: 4,
+  },
+  qrBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 3,
-    backgroundColor: COLORS.background,
-    borderRadius: 6,
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 50,
+    paddingHorizontal: 16,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: COLORS.border,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
+    backgroundColor: COLORS.background,
   },
-  qrActionButtonText: {
-    fontSize: 10,
-    fontWeight: '600',
+  qrBtnHalf: {
+    flex: 1,
+  },
+  qrBtnPrimary: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  qrBtnFormFullscreen: {
+    alignSelf: 'stretch',
+    marginTop: 20,
+  },
+  qrBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
     color: COLORS.primary,
+  },
+  qrBtnTextPrimary: {
+    color: '#FFFFFF',
   },
 });

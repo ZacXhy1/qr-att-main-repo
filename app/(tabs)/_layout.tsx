@@ -9,7 +9,6 @@ export default function TabLayout() {
   const { role, loading } = useNavRole();
   const segments = useSegments() as string[];
 
-  // Wait for the role so the wrong tab bar never flashes.
   if (loading || !role) {
     return (
       <View style={styles.loading}>
@@ -18,14 +17,11 @@ export default function TabLayout() {
     );
   }
 
-  // Block locked tabs even if someone navigates to them directly (deep link,
-  // router.push, etc.). segments looks like ['(tabs)', 'admin'].
   const current = (segments[1] ?? 'index') as TabName;
   if (segments[0] === '(tabs)' && !canAccessTab(role, current)) {
     return <Redirect href="/" />;
   }
 
-  // `href: null` removes the tab from the bar entirely.
   const visible = (tab: TabName) => (canAccessTab(role, tab) ? undefined : null);
 
   return (

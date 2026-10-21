@@ -68,10 +68,8 @@ export default function RegisterScreen() {
       if (authError) {
         setError(authError.message);
       } else if (data.session) {
-        // Email confirmation is off, so a session exists right away.
         router.replace('/(tabs)');
       } else {
-        // Email confirmation is on - show the "check your email" message.
         setSuccess(true);
       }
     } catch (err) {
