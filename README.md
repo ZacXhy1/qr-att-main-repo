@@ -7,8 +7,6 @@ attendance. Built for the Event-Driven Programming final project (QR-ATT).
 **Stack:** Expo (React Native, expo-router, TypeScript) · Supabase (Auth,
 PostgreSQL, Row Level Security, Realtime) · expo-camera
 
-> **APK / build link:** _paste your latest EAS build link here_
-
 ---
 
 ## Features
@@ -156,7 +154,7 @@ project's Expo SDK (see `package.json`).
    ```bash
    npx expo start -c
    ```
-   For an installable build: `eas build --profile preview --platform android`.
+   For an installable build: `eas build --platform android --profile preview`.
 
 ---
 
