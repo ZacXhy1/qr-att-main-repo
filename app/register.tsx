@@ -16,9 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppButton from '@/components/AppButton';
 import Header from '@/components/Header';
 import PasswordInput from '@/components/PasswordInput';
+import PasswordRequirements from '@/components/PasswordRequirements';
 import { COLORS } from '@/constants/colors';
 import { signUp } from '@/lib/auth';
-import { validateEmail, validatePassword } from '@/lib/validation';
+import { PASSWORD_MAX_LENGTH, validateEmail, validatePassword } from '@/lib/validation';
 
 export default function RegisterScreen() {
   const insets = useSafeAreaInsets();
@@ -45,7 +46,7 @@ export default function RegisterScreen() {
       return;
     }
 
-    const passwordError = validatePassword(password);
+    const passwordError = validatePassword(password, { email, fullName });
     if (passwordError) {
       setError(passwordError);
       return;
@@ -143,9 +144,11 @@ export default function RegisterScreen() {
                 <PasswordInput
                   value={password}
                   onChangeText={setPassword}
-                  placeholder="8+ characters, letters and numbers"
+                  placeholder="Create a strong password"
+                  maxLength={PASSWORD_MAX_LENGTH}
                   editable={!loading}
                 />
+                <PasswordRequirements password={password} context={{ email, fullName }} />
 
                 <Text style={styles.label}>Confirm Password</Text>
                 <PasswordInput

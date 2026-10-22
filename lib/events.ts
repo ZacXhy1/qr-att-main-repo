@@ -107,6 +107,16 @@ export async function getEventsByTeacher(
   return (data ?? []) as CloudEvent[];
 }
 
+export async function getAllEventsForAdmin(): Promise<CloudEvent[]> {
+  const { data, error } = await supabase
+    .from('events')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CloudEvent[];
+}
+
 export async function rotateEventSecret(eventId: string): Promise<{ error: string | null }> {
   const { error } = await supabase.rpc('rotate_event_secret', { p_event_id: eventId });
   return { error: error?.message ?? null };

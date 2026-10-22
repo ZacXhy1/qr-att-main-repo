@@ -21,9 +21,11 @@ import AppButton from '@/components/AppButton';
 import { COLORS } from '@/constants/colors';
 import FullscreenQRModal from '@/components/FullscreenQRModal';
 import KeyboardAvoid from '@/components/KeyboardAvoid';
+import { getAllUsers } from '@/lib/admin';
 import { useAuth } from '@/lib/auth';
 import {
   createEvent,
+  getAllEventsForAdmin,
   getEventByCode,
   getEventSecret,
   getEventsByTeacher,
@@ -71,6 +73,8 @@ const QUICK_END_OPTIONS = [
 
 type EditTarget = 'start' | 'end';
 
+const ALL_PAGE_SIZE = 20;
+
 export default function TeacherScreen() {
   const { user } = useAuth();
   const { role, loading: roleLoading } = useRole();
@@ -105,7 +109,9 @@ export default function TeacherScreen() {
 
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
 
-  const [view, setView] = useState<'list' | 'form'>('list');
+  const [view, setView] = useState<'list' | 'form' | 'all'>('list');
+  const [returnView, setReturnView] = useState<'list' | 'all'>('list');
+  const [editingCreatorId, setEditingCreatorId] = useState<string | null>(null);
 
   const [myEvents, setMyEvents] = useState<CloudEvent[]>([]);
   const [eventsLoading, setEventsLoading] = useState(true);
@@ -127,18 +133,46 @@ export default function TeacherScreen() {
     setEventsLoading(false);
   }, [user]);
 
+  const [allEvents, setAllEvents] = useState<CloudEvent[]>([]);
+  const [allLoading, setAllLoading] = useState(true);
+  const [allError, setAllError] = useState<string | null>(null);
+  const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
+  const [allSearch, setAllSearch] = useState('');
+  const [allLimit, setAllLimit] = useState(ALL_PAGE_SIZE);
+
+  const loadAllEvents = useCallback(async () => {
+    try {
+      const [events, users] = await Promise.all([getAllEventsForAdmin(), getAllUsers()]);
+      const names: Record<string, string> = {};
+      users.forEach((u) => {
+        names[u.id] = u.full_name?.trim() || u.email;
+      });
+      setCreatorNames(names);
+      setAllEvents(events);
+      setAllError(null);
+    } catch (e: any) {
+      setAllError(e?.message ?? 'Something went wrong.');
+    }
+    setAllLoading(false);
+  }, []);
+
+  const refreshEvents = useCallback(() => {
+    loadMyEvents();
+    if (role === 'admin') loadAllEvents();
+  }, [loadMyEvents, loadAllEvents, role]);
+
   useFocusEffect(
     useCallback(() => {
       if (role === 'teacher' || role === 'admin') {
-        loadMyEvents();
+        refreshEvents();
       }
-    }, [role, loadMyEvents])
+    }, [role, refreshEvents])
   );
 
   useRealtimeRefresh(
     'teacher-events',
     ['events'],
-    loadMyEvents,
+    refreshEvents,
     role === 'teacher' || role === 'admin'
   );
 
@@ -184,6 +218,7 @@ export default function TeacherScreen() {
 
   const resetForm = () => {
     setEditingEventId(null);
+    setEditingCreatorId(null);
     setTitle('');
     setEventId('');
     setVenue('');
@@ -195,7 +230,9 @@ export default function TeacherScreen() {
     setMessage(null);
   };
 
-  const startEditing = (event: CloudEvent) => {
+  const startEditing = (event: CloudEvent, from: 'list' | 'all' = 'list') => {
+    setReturnView(from);
+    setEditingCreatorId(event.created_by);
     setEditingEventId(event.id);
     setTitle(event.title);
     setEventId(event.event_code);
@@ -319,7 +356,7 @@ export default function TeacherScreen() {
         }
         setMessage('Event updated.');
         showQR(event);
-        loadMyEvents();
+        refreshEvents();
       });
       return;
     }
@@ -337,7 +374,7 @@ export default function TeacherScreen() {
           setEventId(created.event_code);
         }
       });
-      loadMyEvents();
+      refreshEvents();
     });
   };
 
@@ -362,14 +399,90 @@ export default function TeacherScreen() {
               Alert.alert('Error', error);
               return;
             }
-            setMyEvents((prev) =>
-              prev.map((e) => (e.id === event.id ? { ...e, status: nextStatus } : e))
-            );
+            const apply = (list: CloudEvent[]) =>
+              list.map((e) => (e.id === event.id ? { ...e, status: nextStatus } : e));
+            setMyEvents(apply);
+            setAllEvents(apply);
           },
         },
       ]
     );
   };
+
+  const creatorName = (id: string | null) => (id ? creatorNames[id] ?? 'Unknown user' : 'Unknown user');
+
+  const renderEventCard = (event: CloudEvent, from: 'list' | 'all') => (
+          <View key={event.id} style={styles.eventCard}>
+            <View style={styles.eventCardHeader}>
+              <View style={styles.eventCardInfo}>
+                <Text style={styles.eventCardTitle}>{event.title}</Text>
+                <Text style={styles.eventMeta}>{event.event_code}</Text>
+                {from === 'all' && (
+                  <Text style={styles.eventMeta}>
+                    By {event.created_by === user?.id ? 'you' : creatorName(event.created_by)}
+                  </Text>
+                )}
+                {event.venue && <Text style={styles.eventMeta}>{event.venue}</Text>}
+                {event.start_time && (
+                  <Text style={styles.eventMeta}>{formatShort(event.start_time)}</Text>
+                )}
+              </View>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: STATE_COLOR[getEventState(event, now)] },
+                ]}
+              >
+                <Text style={styles.statusBadgeText}>
+                  {STATE_LABEL[getEventState(event, now)]}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.eventCardActions}>
+              <Pressable
+                style={styles.smallButton}
+                onPress={() => handleShowQR(event)}
+                disabled={busyEventId === event.id}
+              >
+                <Ionicons name="qr-code-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.smallButtonText}>QR</Text>
+              </Pressable>
+              <Pressable style={styles.smallButton} onPress={() => startEditing(event, from)}>
+                <Ionicons name="create-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.smallButtonText}>Edit</Text>
+              </Pressable>
+              <Pressable
+                style={styles.smallButton}
+                onPress={() => handleToggleStatus(event)}
+                disabled={busyEventId === event.id}
+              >
+                <Ionicons
+                  name={event.status === 'open' ? 'lock-closed-outline' : 'lock-open-outline'}
+                  size={16}
+                  color={COLORS.primary}
+                />
+                <Text style={styles.smallButtonText}>
+                  {busyEventId === event.id
+                    ? '...'
+                    : event.status === 'open'
+                    ? 'Close'
+                    : 'Reopen'}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+  );
+
+  const filteredAll = (() => {
+    const q = allSearch.trim().toLowerCase();
+    if (!q) return allEvents;
+    return allEvents.filter((e) =>
+      `${e.title} ${e.event_code} ${e.venue ?? ''} ${creatorName(e.created_by)}`
+        .toLowerCase()
+        .includes(q)
+    );
+  })();
 
   if (roleLoading) {
     return (
@@ -405,10 +518,21 @@ export default function TeacherScreen() {
             My Events
           </Text>
         </Pressable>
+        {role === 'admin' && (
+          <Pressable
+            style={[styles.segment, view === 'all' && styles.segmentActive]}
+            onPress={() => setView('all')}
+          >
+            <Text style={[styles.segmentText, view === 'all' && styles.segmentTextActive]}>
+              All Events
+            </Text>
+          </Pressable>
+        )}
         <Pressable
           style={[styles.segment, view === 'form' && styles.segmentActive]}
           onPress={() => {
             resetForm();
+            setReturnView('list');
             setView('form');
           }}
         >
@@ -425,7 +549,9 @@ export default function TeacherScreen() {
       </Text>
       <Text style={styles.subtitle}>
         {editingEventId
-          ? 'Update the event details below.'
+          ? editingCreatorId && editingCreatorId !== user?.id
+            ? `Editing an event created by ${creatorName(editingCreatorId)}.`
+            : 'Update the event details below.'
           : 'Fill in the event details, then scan the generated QR with the Scan tab.'}
       </Text>
 
@@ -525,11 +651,15 @@ export default function TeacherScreen() {
         style={styles.cancelLink}
         onPress={() => {
           resetForm();
-          setView('list');
+          setView(returnView);
         }}
       >
         <Text style={styles.cancelLinkText}>
-          {editingEventId ? 'Cancel editing' : 'Back to My Events'}
+          {editingEventId
+            ? 'Cancel editing'
+            : returnView === 'all'
+            ? 'Back to All Events'
+            : 'Back to My Events'}
         </Text>
       </Pressable>
 
@@ -604,64 +734,59 @@ export default function TeacherScreen() {
           You haven't created any events yet. Use the form above.
         </Text>
       ) : (
-        myEvents.map((event) => (
-          <View key={event.id} style={styles.eventCard}>
-            <View style={styles.eventCardHeader}>
-              <View style={styles.eventCardInfo}>
-                <Text style={styles.eventCardTitle}>{event.title}</Text>
-                <Text style={styles.eventMeta}>{event.event_code}</Text>
-                {event.venue && <Text style={styles.eventMeta}>{event.venue}</Text>}
-                {event.start_time && (
-                  <Text style={styles.eventMeta}>{formatShort(event.start_time)}</Text>
-                )}
-              </View>
-              <View
-                style={[
-                  styles.statusBadge,
-                  { backgroundColor: STATE_COLOR[getEventState(event, now)] },
-                ]}
-              >
-                <Text style={styles.statusBadgeText}>
-                  {STATE_LABEL[getEventState(event, now)]}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.eventCardActions}>
-              <Pressable
-                style={styles.smallButton}
-                onPress={() => handleShowQR(event)}
-                disabled={busyEventId === event.id}
-              >
-                <Ionicons name="qr-code-outline" size={16} color={COLORS.primary} />
-                <Text style={styles.smallButtonText}>QR</Text>
-              </Pressable>
-              <Pressable style={styles.smallButton} onPress={() => startEditing(event)}>
-                <Ionicons name="create-outline" size={16} color={COLORS.primary} />
-                <Text style={styles.smallButtonText}>Edit</Text>
-              </Pressable>
-              <Pressable
-                style={styles.smallButton}
-                onPress={() => handleToggleStatus(event)}
-                disabled={busyEventId === event.id}
-              >
-                <Ionicons
-                  name={event.status === 'open' ? 'lock-closed-outline' : 'lock-open-outline'}
-                  size={16}
-                  color={COLORS.primary}
-                />
-                <Text style={styles.smallButtonText}>
-                  {busyEventId === event.id
-                    ? '...'
-                    : event.status === 'open'
-                    ? 'Close'
-                    : 'Reopen'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        ))
+        myEvents.map((event) => renderEventCard(event, 'list'))
       )}
+        </>
+      )}
+
+      {view === 'all' && role === 'admin' && (
+        <>
+          <Text style={styles.title}>All Events</Text>
+          <Text style={styles.subtitle}>
+            Manage events created by any teacher or admin.
+          </Text>
+
+          <View style={styles.searchBox}>
+            <Ionicons name="search-outline" size={18} color={COLORS.textSecondary} />
+            <TextInput
+              style={styles.searchInput}
+              value={allSearch}
+              onChangeText={(t) => {
+                setAllSearch(t);
+                setAllLimit(ALL_PAGE_SIZE);
+              }}
+              placeholder="Search title, code, venue or creator"
+              placeholderTextColor={COLORS.textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+
+          {allLoading ? (
+            <Text style={styles.subtitle}>Loading events...</Text>
+          ) : allError ? (
+            <Pressable onPress={loadAllEvents}>
+              <Text style={[styles.subtitle, { color: COLORS.danger }]}>
+                Could not load events: {allError}. Tap to retry.
+              </Text>
+            </Pressable>
+          ) : filteredAll.length === 0 ? (
+            <Text style={styles.subtitle}>No events found.</Text>
+          ) : (
+            <>
+              {filteredAll.slice(0, allLimit).map((event) => renderEventCard(event, 'all'))}
+              {filteredAll.length > allLimit && (
+                <Pressable
+                  style={styles.showMoreButton}
+                  onPress={() => setAllLimit((n) => n + ALL_PAGE_SIZE)}
+                >
+                  <Text style={styles.showMoreText}>
+                    Show more ({filteredAll.length - allLimit} left)
+                  </Text>
+                </Pressable>
+              )}
+            </>
+          )}
         </>
       )}
 
@@ -788,6 +913,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: COLORS.textSecondary,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: COLORS.card,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: COLORS.textPrimary,
+  },
+  showMoreButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  showMoreText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.primary,
   },
   segmentTextActive: {
     color: '#FFFFFF',
